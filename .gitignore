@@ -1,0 +1,21 @@
+# Godot
+.godot/
+*.translation
+
+# ビルド成果物
+build/
+
+# 作業用
+tmp/
+var/
+
+# direnv (ローカルの環境変数・secret)
+.envrc
+
+# Godot 管理外ディレクトリに生成された .import は不要
+documents/**/*.import
+docs/**/*.import
+build/**/*.import
+
+# macOS
+.DS_Store

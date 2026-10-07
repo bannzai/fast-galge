@@ -1,0 +1,3 @@
+# Godot が生成するインポート設定は PR レビュー対象から折りたたむ
+*.import linguist-generated=true
+*.uid linguist-generated=true
