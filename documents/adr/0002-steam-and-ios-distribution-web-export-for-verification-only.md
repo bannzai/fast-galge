@@ -14,6 +14,7 @@ ADR 0001 は配信先が未決の段階で、agent が「Web エクスポート�
 
 ## Decision
 
+- ADR 0001 から引き継ぐ決定 (本 ADR が有効な根拠になる): エンジンは Godot 4.7 stable、言語は GDScript で C# (.NET 版 Godot) は導入しない。レンダラは GL Compatibility (CI の Xvfb + llvmpipe と WebGL2 の両方で描画できる)。Web エクスポートの Thread Support は有効化しない。バックエンド (DB・ストレージ・認証・サーバー) を持たず、セーブデータは端末内のローカル保存 (`user://`) に置く
 - 配信先は **Steam (Windows x86_64 / macOS universal / Linux x86_64) と iOS (App Store)** にする。Android は Google Play の公開データを読む手段ができてから足す
 - 価格は **Steam・iOS とも無料** (課金・広告なし)。SNS で共有される目的に合わせ、特定商取引法に基づく表記・IAP・EULA の作業を増やさない。有料にする判断が出たら見直す
 - **Web エクスポートは配信せず、検証専用に残す**。CI で作って artifact に置き、webtunnel skill で GitHub Actions の runner 上のブラウザから遊ぶ (開発マシンで Godot を動かさないため)。GitHub Pages は紹介ページと法務ドキュメントだけを配信し、Web ビルドを置かない

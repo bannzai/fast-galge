@@ -4,7 +4,7 @@
 
 ## 制約
 
-- C# (.NET 版 Godot) を導入しない。レンダラを GL Compatibility から変えない。Web エクスポートの Thread Support を有効化しない。サーバー・計測 SDK (Firebase / Cloudflare Web Analytics 等) を追加しない。Steamworks SDK を追加しない。根拠: [ADR 0001](documents/adr/0001-godot-gdscript-web-github-pages-no-backend.md)、[ADR 0002](documents/adr/0002-steam-and-ios-distribution-web-export-for-verification-only.md)
+- C# (.NET 版 Godot) を導入しない。レンダラを GL Compatibility から変えない。Web エクスポートの Thread Support を有効化しない。サーバー・計測 SDK (Firebase / Cloudflare Web Analytics 等) を追加しない。Steamworks SDK を追加しない。根拠: [ADR 0002](documents/adr/0002-steam-and-ios-distribution-web-export-for-verification-only.md) (ADR 0001 の決定を引き継いで置き換えた)
 - Web ビルドは検証専用で配信しない (GitHub Pages の `docs/play/` に置かない)。関門 3 (触れる版) で公開に進むと決まるまで、Steam (SteamPipe)・TestFlight への配布を既定ブランチへの push で動かさない。ビルドは CI の artifact (`fast-galge-desktop` / `fast-galge-web`) に留める
 
 ## 検証方法
