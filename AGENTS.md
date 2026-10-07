@@ -1,21 +1,22 @@
 # fast-galge
 
-会話がすごい早さで進むギャルゲー (Godot 4.7 / Web)。仕様・スコープは [documents/PROJECT.md](documents/PROJECT.md) を参照 (SSOT)。判断の根拠 (仮説・判定基準・決めたこと) は [documents/DIRECTION.md](documents/DIRECTION.md)。
+会話がすごい早さで進むギャルゲー (Godot 4.7 / Steam と iOS)。仕様・スコープは [documents/PROJECT.md](documents/PROJECT.md) を参照 (SSOT)。判断の根拠 (仮説・判定基準・決めたこと) は [documents/DIRECTION.md](documents/DIRECTION.md)。
 
 ## 制約
 
-- C# (.NET 版 Godot) を導入しない。レンダラを GL Compatibility から変えない。Web エクスポートの Thread Support を有効化しない。サーバー・計測 SDK を追加しない (計測は GitHub Pages のページに置く Cloudflare Web Analytics の JS スニペットだけ)。根拠: [ADR 0001](documents/adr/0001-godot-gdscript-web-github-pages-no-backend.md)
-- 関門 3 (触れる版) で公開に進むと決まるまで、Web ビルドを GitHub Pages (`docs/play/`) に置く CD を既定ブランチへの push で動かさない。CI の artifact (`fast-galge-web`) に留める
+- C# (.NET 版 Godot) を導入しない。レンダラを GL Compatibility から変えない。Web エクスポートの Thread Support を有効化しない。サーバー・計測 SDK (Firebase / Cloudflare Web Analytics 等) を追加しない。Steamworks SDK を追加しない。根拠: [ADR 0002](documents/adr/0002-steam-and-ios-distribution-web-export-for-verification-only.md) (ADR 0001 の決定を引き継いで置き換えた)
+- Web ビルドは検証専用で配信しない (GitHub Pages の `docs/play/` に置かない)。関門 3 (触れる版) で公開に進むと決まるまで、Steam (SteamPipe)・TestFlight への配布を既定ブランチへの push で動かさない。ビルドは CI の artifact (`fast-galge-desktop` / `fast-galge-web`) に留める
 
 ## 検証方法
 
-ビルド・Godot の起動 (headless を含む)・描画付きの撮影・ブラウザでの動作確認は、開発マシンの負荷を避けるため、このマシンでは実行せず外部マシンに任せる。本リポジトリは public のため GitHub Actions の Linux ランナーを使い、ブラウザでの操作を伴う確認は webtunnel skill (runner 上の Chromium を Tailscale 経由で操作する) で行う。private リポジトリへ変える場合は、描画を伴う動作確認を Devin のセッションで行う (devin-macos-e2e skill)。simtunnel は iOS Simulator 用のため本プロジェクトでは使わない。
+ビルド・Godot の起動 (headless を含む)・描画付きの撮影・ブラウザや simulator での動作確認は、開発マシンの負荷を避けるため、このマシンでは実行せず外部マシンに任せる。本リポジトリは public のため GitHub Actions のランナー (Linux。iOS のエクスポートだけ macOS) を使い、ブラウザでの操作を伴う確認は webtunnel skill (runner 上の Chromium を Tailscale 経由で操作する) で Web ビルドを開いて行い、iOS の simulator での確認は simtunnel (ios-simulator skill) で行う。private リポジトリへ変える場合は、描画を伴う動作確認を Devin のセッションで行う (devin-macos-e2e skill)。
 
 - このマシンで実行してよいのは `make lint` (gdlint) だけ。ユーザーが明示的に頼んだ時と、人が遊んで確かめる `make run` はこの限りでない
 - 変更は push して PR を開き、CI の結果で成否を判断する。`gh pr checks <PR 番号> --watch` で完了を待ち、失敗したら `gh run view <run ID> --log-failed` と artifact `fast-galge-check-logs` の `tmp/*.log` を読む
 - 見た目の確認は artifact `fast-galge-screenshot-and-movie` を `gh run download <run ID> -n fast-galge-screenshot-and-movie -D tmp/artifact` で取得し、PNG と、mp4 の末尾のフレーム (`ffmpeg -sseof -1 -i tmp/artifact/movie.mp4 -frames:v 1 tmp/artifact/movie-last.png`) を目視してから完了報告する
 - ブラウザでの動作確認 (Web ビルドを実際に開いて操作する) は webtunnel skill (`~/.claude/skills/webtunnel/SKILL.md`) で行う。`WEBTUNNEL_REPO=bannzai/fast-galge` で `up <session> --software-webgl --wait` を実行すると、runner が `.github/workflows/browser-session.yml` の手順で Web エクスポートを作って配信し、`scripts/godot-web.sh --session <session>` でクリック・キー入力・撮影ができる。Secrets (`TS_OIDC_CLIENT_ID` / `TS_OIDC_AUDIENCE`) の登録が前提 (未登録なら「ユーザー作業の一覧」issue の項目)
 - Web ビルドをローカルで開く時は artifact `fast-galge-web` を `gh run download <run ID> -n fast-galge-web -D tmp/artifact-web` で取得し (artifact 名を 1 つ指定した時は指定したディレクトリの直下に展開される)、`python3 -m http.server 8000 --directory tmp/artifact-web` で配信してブラウザで開く (Web ビルドは file:// の直開きでは動かない。ローカルのブラウザは runner の代わりにならないため、人が遊ぶ時だけ)
+- 人がデスクトップ版を遊ぶ時は artifact `fast-galge-desktop` を取得し、macOS なら `macos/fast-galge.zip` を展開してアプリを開く (未署名のため Gatekeeper の警告が出る)。Linux は実行権限を保つため `fast-galge-linux.tar.gz` にまとめてあり、展開して `fast-galge.x86_64` を実行する
 
 各 target の内容と成功条件 (CI が実行する。`GODOT` 未指定時の既定は macOS の `/Applications/Godot.app/Contents/MacOS/Godot`、CI では Linux バイナリを渡す):
 
@@ -26,17 +27,18 @@
 | 起動検証 (メインシーン・スクリプトのロード) | `make check` | exit 0 かつ `tmp/check.log` に `fast-galge boot` が出力され、WARNING / ERROR 行がない |
 | ロジック検証 (画面の遷移表、会話エンジンの計算 = 表示時間・時間切れ・好感度・分岐・所要時間、`scenario/` の全ファイルの形式、本編の所要時間と good / bad への到達、全シーンのロード、全素材が `assets/CREDITS.md` に記録されていること) | `make selfcheck` | exit 0 かつ `tmp/selfcheck.log` に `selfcheck OK` が出力され、WARNING / ERROR 行がない |
 | 入力統合テスト (キー入力とマウスのクリックで、サンプルシナリオの自動送り・選択・時間切れ・バックログの開閉・タップだけでの完走と、本編の good / bad への到達。`--fixed-fps 60` で会話の時間を実時間から切り離して流す) | `make integration` | exit 0 かつ `tmp/integration.log` に `integration OK` が出力され、WARNING / ERROR 行がない |
-| headless 検証の一括実行 (lint → check → selfcheck → integration) | `make test` (引数なしの `make` = `verify` も同じ) | exit 0 |
+| headless 検証の一括実行 (lint → check → selfcheck → integration) | `make test` | exit 0 |
 | スクリーンショット (タイトル・会話中・選択肢・バックログ・エンディング。headless の検証では見た目の崩れを検出できない) | `make screenshot` | exit 0 かつ `tmp/screenshot-*.png` が生成される |
 | 起動の録画 (起動〜タイトルの表示〜本編の文字送り。起動直後の描画崩れ・真っ黒の検出と、文字送りの速さの目視。タイトルから本編を始める操作は `scripts/dev/movie.gd`) | `make movie` | exit 0 かつ `tmp/movie.mp4` が生成され、末尾のフレームの輝度平均が基準以上 (ffmpeg が必要) |
-| ゲームをエディタなしで起動 (人が遊んで確かめる。アセットのインポートを含む) | `make run` | ウィンドウが開きタイトル画面が表示される |
-| Web エクスポート | `make build-web` | exit 0 で `build/web/` に `index.html` / `index.wasm` / `index.pck` が生成され、`tmp/build-web.log` に WARNING / ERROR 行がない |
+| ゲームをエディタなしで起動 (人が遊んで確かめる。アセットのインポートを含む。引数なしの `make` の既定) | `make run` | ウィンドウが開きタイトル画面が表示される |
+| デスクトップエクスポート (Steam に提出する 3 プラットフォーム) | `make build-macos` / `make build-windows` / `make build-linux` / `make build-all` | exit 0 で `build/<platform>/` に成果物が生成され、`tmp/build-<platform>.log` に WARNING / ERROR 行がない。Windows と Linux は pck にシナリオの JSON が入っている |
+| Web エクスポート (検証専用。webtunnel で開く) | `make build-web` | exit 0 で `build/web/` に `index.html` / `index.wasm` / `index.pck` が生成され、`tmp/build-web.log` に WARNING / ERROR 行がなく、pck にシナリオの JSON が入っている |
 
 - 画面や状態を追加したら `scripts/dev/screenshot.gd` の `_capture_scenes()` に撮影を足し、入力で変わる振る舞いは `scripts/dev/integration.gd` に検証を足す。純粋な計算は `scripts/dev/selfcheck.gd` に検証を足す
 - 日本語の字形は同梱しておらず、既定フォントからシステムフォントへのフォールバックで描画する (フォントの選定と同梱は関門 2 のデザインの反映で行う)。CI の撮影は `fonts-noto-cjk` を入れて描画する。Web エクスポートはシステムフォントを使えないため、フォントを同梱するまで日本語が表示されない
 - Godot の起動にはすべて `--log-file` を付ける (Makefile の `ENGINE_LOG`)。付けないと Godot が `user://` にログを書こうとし、書き込みを拒否するサンドボックスでは起動に失敗する
 - ログは `tmp/*.log` に保存し、target の標準出力と `--log-file` の Godot 自身のログ (`tmp/<target>.godot.log`) の両方の全文を WARNING / ERROR 検査する (`tail` で切り詰めて判定しない。Makefile の `check_clean_log`)
-- Web エクスポートには Godot 4.7 の Web 用 export template (`web_nothreads_release.zip`) が要る。CI は `.github/actions/setup-godot` が tpz から必要なテンプレートだけを取り出してキャッシュする
+- エクスポートには Godot 4.7 の各プラットフォームの export template (デスクトップ 3 つと Web 用の `web_nothreads_release.zip`) が要る。CI は `.github/actions/setup-godot` が tpz から必要なテンプレートだけを取り出してキャッシュする
 - スクリプト・シーンを足した時に Godot が生成する `.uid` はコミット対象 (`~/.claude/rules/coding-rules-godot-gdscript-and-project-layout.md`)。このマシンでは生成できないため、CI の artifact `fast-galge-uid` を `gh run download <run ID> -n fast-galge-uid -D .` で取り込んでコミットする
 
 ## 規約

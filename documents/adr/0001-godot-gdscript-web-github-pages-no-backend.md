@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0002](0002-steam-and-ios-distribution-web-export-for-verification-only.md) (配信先と計測の決定)。エンジン・レンダラ・バックエンドを持たない決定は ADR 0002 が引き継ぐ
 
 ## Context
 

@@ -1,6 +1,6 @@
 # fast-galge — 要件
 
-会話がすごい早さで進むギャルゲー。文字送りが止められないほど速く、選択肢には制限時間がある。それ以外 (立ち絵・背景・好感度・分岐・複数エンディング・バックログ・セーブ) は普通のギャルゲーと同じ水準で揃える。Godot 4 の Web エクスポートを GitHub Pages で無料配信する。
+会話がすごい早さで進むギャルゲー。文字送りが止められないほど速く、選択肢には制限時間がある。それ以外 (立ち絵・背景・好感度・分岐・複数エンディング・バックログ・セーブ) は普通のギャルゲーと同じ水準で揃える。Godot 4 で作り、Steam (Windows / macOS / Linux) と iOS (App Store) で無料配信する。遊んだ結果を SNS で共有できる結果画面を持つ。
 
 企画の出典: https://github.com/bannzai/IdeaMemo/issues/355
 判断の根拠 (仮説・判定基準・決めたこと): [documents/DIRECTION.md](DIRECTION.md)
@@ -16,7 +16,10 @@
 - 好感度はヒロインごとに持ち、ルートの終わりで good / bad を分ける。どちらのヒロインの好感度も足りなければ共通の bad エンディング
 - バックログを開くと会話が止まる。閉じると続きから再開する
 - 章の区切りでオートセーブし、タイトルの「つづきから」で再開できる
-- クリア後 (エンディングを 1 つ見た後) に「ゆっくりモード」(通常のギャルゲーの速さ。クリックで送る) を解放する
+- クリア後 (エンディングを 1 つ見た後) に「ゆっくりモード」(通常のギャルゲーの速さ。クリックかタップで送る) を解放する
+- 操作はキーボード (Enter / Space で決定、B でバックログ、1〜3 で選択肢) とタップ (選択肢のボタン・バックログのボタン) の両方。文字送りは操作しないため、タップだけで最後まで遊べる
+- エンディングに着くと結果画面 (エンディング名・所要時間・選んだ選択肢の数・時間切れの回数) を 1 枚の画像にまとめ、X への共有ができる
+- クレジット画面から、利用規約・プライバシーポリシー・サポートページ (紹介ページのサポート節) とメールの宛先を開ける (App Store の審査が求めるアプリ内の連絡手段)
 
 ## 登場人物とシナリオの規模
 
@@ -28,10 +31,11 @@
 
 ## 技術・配信
 
-- エンジン: Godot 4.7 (GDScript)。Web エクスポート (シングルスレッド)。構成の決定と理由は [ADR 0001](adr/0001-godot-gdscript-web-github-pages-no-backend.md)
-- 配信: GitHub Pages (`https://bannzai.github.io/fast-galge/`)。LP と法務ドキュメントは `docs/`、Web ビルドは関門 3 の後に `docs/play/` へ CD で配置する
-- 計測: Cloudflare Web Analytics の JS スニペット (ゲームのページだけに置く)。判定基準は DIRECTION.md
-- 保存: ブラウザのローカル保存 (`user://`、Web では IndexedDB)。サーバー・アカウント・課金は持たない
+- エンジン: Godot 4.7 (GDScript)。構成の決定と理由は [ADR 0001](adr/0001-godot-gdscript-web-github-pages-no-backend.md) (エンジン・レンダラ・バックエンドなし) と [ADR 0002](adr/0002-steam-and-ios-distribution-web-export-for-verification-only.md) (配信先・計測)
+- 配信: Steam (Windows x86_64 / macOS universal / Linux x86_64) と iOS (App Store)。どちらも無料 (課金・広告なし)。Android は Google Play の公開データを読む手段ができてから。Web エクスポートは配信せず、検証専用 (webtunnel で runner 上のブラウザから遊ぶ)
+- 紹介ページと法務ドキュメント: GitHub Pages (`https://bannzai.github.io/fast-galge/`。`docs/`)。App Store の Support URL と privacy URL に使う
+- 計測: ゲームに計測 SDK を入れない。Steam と App Store の公開データ (レビュー数・同時接続数・評価) を castle の skill で読む。判定基準は DIRECTION.md
+- 保存: 端末内のローカル保存 (`user://`)。サーバー・アカウント・課金は持たない
 
 ## 似たゲーム
 
