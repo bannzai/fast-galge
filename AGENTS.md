@@ -15,7 +15,7 @@
 - 変更は push して PR を開き、CI の結果で成否を判断する。`gh pr checks <PR 番号> --watch` で完了を待ち、失敗したら `gh run view <run ID> --log-failed` と artifact `fast-galge-check-logs` の `tmp/*.log` を読む
 - 見た目の確認は artifact `fast-galge-screenshot-and-movie` を `gh run download <run ID> -n fast-galge-screenshot-and-movie -D tmp/artifact` で取得し、PNG と、mp4 の末尾のフレーム (`ffmpeg -sseof -1 -i tmp/artifact/movie.mp4 -frames:v 1 tmp/artifact/movie-last.png`) を目視してから完了報告する
 - ブラウザでの動作確認 (Web ビルドを実際に開いて操作する) は webtunnel skill (`~/.claude/skills/webtunnel/SKILL.md`) で行う。`WEBTUNNEL_REPO=bannzai/fast-galge` で `up <session> --software-webgl --wait` を実行すると、runner が `.github/workflows/browser-session.yml` の手順で Web エクスポートを作って配信し、`scripts/godot-web.sh --session <session>` でクリック・キー入力・撮影ができる。Secrets (`TS_OIDC_CLIENT_ID` / `TS_OIDC_AUDIENCE`) の登録が前提 (未登録なら「ユーザー作業の一覧」issue の項目)
-- Web ビルドをローカルで開く時は artifact `fast-galge-web` を取得し、`python3 -m http.server 8000 --directory tmp/artifact/web` で配信してブラウザで開く (Web ビルドは file:// の直開きでは動かない。ローカルのブラウザは runner の代わりにならないため、人が遊ぶ時だけ)
+- Web ビルドをローカルで開く時は artifact `fast-galge-web` を `gh run download <run ID> -n fast-galge-web -D tmp/artifact-web` で取得し (artifact 名を 1 つ指定した時は指定したディレクトリの直下に展開される)、`python3 -m http.server 8000 --directory tmp/artifact-web` で配信してブラウザで開く (Web ビルドは file:// の直開きでは動かない。ローカルのブラウザは runner の代わりにならないため、人が遊ぶ時だけ)
 
 各 target の内容と成功条件 (CI が実行する。`GODOT` 未指定時の既定は macOS の `/Applications/Godot.app/Contents/MacOS/Godot`、CI では Linux バイナリを渡す):
 
@@ -36,6 +36,7 @@
 - Godot の起動にはすべて `--log-file` を付ける (Makefile の `ENGINE_LOG`)。付けないと Godot が `user://` にログを書こうとし、書き込みを拒否するサンドボックスでは起動に失敗する
 - ログは `tmp/*.log` に保存し、target の標準出力と `--log-file` の Godot 自身のログ (`tmp/<target>.godot.log`) の両方の全文を WARNING / ERROR 検査する (`tail` で切り詰めて判定しない。Makefile の `check_clean_log`)
 - Web エクスポートには Godot 4.7 の Web 用 export template (`web_nothreads_release.zip`) が要る。CI は `.github/actions/setup-godot` が tpz から必要なテンプレートだけを取り出してキャッシュする
+- スクリプト・シーンを足した時に Godot が生成する `.uid` はコミット対象 (`~/.claude/rules/coding-rules-godot-gdscript-and-project-layout.md`)。このマシンでは生成できないため、CI の artifact `fast-galge-uid` を `gh run download <run ID> -n fast-galge-uid -D .` で取り込んでコミットする
 
 ## 規約
 

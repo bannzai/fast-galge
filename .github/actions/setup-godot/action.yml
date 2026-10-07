@@ -12,7 +12,7 @@ inputs:
     required: false
     default: "4.7.stable"
   templates:
-    description: "tpz から取り出す templates/ 配下のファイル (空白区切り。version.txt は常に取り出す)"
+    description: "tpz から取り出す templates/ 配下のファイル (空白区切り。version.txt も取り出す。空なら tpz を取得しない)"
     required: true
   cache_key_suffix:
     description: "取り出すテンプレートの組み合わせを表すキャッシュキーの接尾辞"
@@ -45,11 +45,13 @@ runs:
         mkdir -p ~/godot-bin ~/.local/share/godot/export_templates/${GODOT_VERSION_DIR}
         curl -fsSL -o /tmp/godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
         unzip -q /tmp/godot.zip -d ~/godot-bin
-        curl -fsSL -o /tmp/templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
-        # TEMPLATES は空白区切りの複数ファイルを渡すため意図的に単語分割する
-        # shellcheck disable=SC2086
-        unzip -q -o -j /tmp/templates.tpz "templates/version.txt" $TEMPLATES \
-          -d ~/.local/share/godot/export_templates/${GODOT_VERSION_DIR}
+        if [ -n "$TEMPLATES" ]; then
+          curl -fsSL -o /tmp/templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+          # TEMPLATES は空白区切りの複数ファイルを渡すため意図的に単語分割する
+          # shellcheck disable=SC2086
+          unzip -q -o -j /tmp/templates.tpz "templates/version.txt" $TEMPLATES \
+            -d ~/.local/share/godot/export_templates/${GODOT_VERSION_DIR}
+        fi
     - name: Resolve Godot path
       id: path
       shell: bash

@@ -50,6 +50,17 @@ jobs:
           path: tmp/*.log
           if-no-files-found: warn
           retention-days: 7
+      # Godot が import で生成する .uid (リソース参照に使う。コミット対象) を、Godot をローカルで動かさない
+      # 開発マシンから取り込めるように artifact に残す。コミット済みなら差分は出ない
+      - name: Upload generated uid files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fast-galge-uid
+          path: |
+            scripts/**/*.uid
+            scenes/**/*.uid
+          if-no-files-found: warn
+          retention-days: 7
       - name: Upload web build
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -68,7 +79,7 @@ jobs:
       - id: godot
         uses: ./.github/actions/setup-godot
         with:
-          # エディタバイナリで動かすため export templates は要らない (tpz からは version.txt だけ取り出す)
+          # エディタバイナリで動かすため export templates は要らない (空なら tpz を取得しない)
           templates: ""
           cache_key_suffix: editor-only
       - name: Start Xvfb with software GL
