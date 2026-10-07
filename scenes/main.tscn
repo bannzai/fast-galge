@@ -20,24 +20,239 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.09, 0.08, 0.13, 1)
 
-[node name="Title" type="Label" parent="."]
+[node name="TitleScreen" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Title" type="Label" parent="TitleScreen"]
 layout_mode = 0
-offset_top = 260.0
+offset_top = 220.0
 offset_right = 1280.0
-offset_bottom = 380.0
+offset_bottom = 340.0
 theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
 theme_override_font_sizes/font_size = 72
 text = "fast-galge"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Hint" type="Label" parent="."]
+[node name="StartButton" type="Button" parent="TitleScreen"]
 layout_mode = 0
+offset_left = 440.0
 offset_top = 400.0
-offset_right = 1280.0
-offset_bottom = 450.0
-theme_override_colors/font_color = Color(1, 0.55, 0.3, 1)
-theme_override_font_sizes/font_size = 28
-text = "Press Enter"
+offset_right = 840.0
+offset_bottom = 480.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 32
+text = "はじめる [Enter]"
+
+[node name="ConversationScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Portrait" type="ColorRect" parent="ConversationScreen"]
+layout_mode = 0
+offset_left = 460.0
+offset_top = 60.0
+offset_right = 820.0
+offset_bottom = 480.0
+color = Color(0.98, 0.78, 0.82, 1)
+
+[node name="Expression" type="Label" parent="ConversationScreen/Portrait"]
+layout_mode = 0
+offset_right = 360.0
+offset_bottom = 420.0
+theme_override_colors/font_color = Color(0.35, 0.15, 0.2, 1)
+theme_override_font_sizes/font_size = 40
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="MessageWindow" type="ColorRect" parent="ConversationScreen"]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 500.0
+offset_right = 1240.0
+offset_bottom = 700.0
+color = Color(0.97, 0.95, 0.9, 1)
+
+[node name="Speaker" type="Label" parent="ConversationScreen/MessageWindow"]
+layout_mode = 0
+offset_left = 28.0
+offset_top = 14.0
+offset_right = 1172.0
+offset_bottom = 58.0
+theme_override_colors/font_color = Color(0.75, 0.25, 0.2, 1)
+theme_override_font_sizes/font_size = 28
+
+[node name="Message" type="Label" parent="ConversationScreen/MessageWindow"]
+layout_mode = 0
+offset_left = 28.0
+offset_top = 64.0
+offset_right = 1172.0
+offset_bottom = 188.0
+theme_override_colors/font_color = Color(0.12, 0.1, 0.15, 1)
+theme_override_font_sizes/font_size = 32
+autowrap_mode = 3
+
+[node name="BacklogButton" type="Button" parent="ConversationScreen"]
+layout_mode = 0
+offset_left = 1080.0
+offset_top = 20.0
+offset_right = 1260.0
+offset_bottom = 80.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 26
+text = "ログ [B]"
+
+[node name="Choices" type="Control" parent="ConversationScreen"]
+visible = false
+layout_mode = 0
+offset_left = 240.0
+offset_top = 110.0
+offset_right = 1040.0
+offset_bottom = 470.0
+
+[node name="TimeBar" type="ProgressBar" parent="ConversationScreen/Choices"]
+layout_mode = 0
+offset_right = 800.0
+offset_bottom = 28.0
+max_value = 1.0
+step = 0.001
+value = 1.0
+show_percentage = false
+
+[node name="Choice1" type="Button" parent="ConversationScreen/Choices"]
+layout_mode = 0
+offset_top = 52.0
+offset_right = 800.0
+offset_bottom = 136.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 28
+
+[node name="Choice2" type="Button" parent="ConversationScreen/Choices"]
+layout_mode = 0
+offset_top = 156.0
+offset_right = 800.0
+offset_bottom = 240.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 28
+
+[node name="Choice3" type="Button" parent="ConversationScreen/Choices"]
+layout_mode = 0
+offset_top = 260.0
+offset_right = 800.0
+offset_bottom = 344.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 28
+
+[node name="BacklogScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="ColorRect" parent="BacklogScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.14, 0.13, 0.2, 1)
+
+[node name="Heading" type="Label" parent="BacklogScreen"]
+layout_mode = 0
+offset_left = 80.0
+offset_top = 24.0
+offset_right = 800.0
+offset_bottom = 84.0
+theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+theme_override_font_sizes/font_size = 36
+text = "バックログ"
+vertical_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="BacklogScreen"]
+layout_mode = 0
+offset_left = 80.0
+offset_top = 100.0
+offset_right = 1200.0
+offset_bottom = 620.0
+horizontal_scroll_mode = 0
+
+[node name="Entries" type="Label" parent="BacklogScreen/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
+theme_override_font_sizes/font_size = 26
+autowrap_mode = 3
+
+[node name="CloseButton" type="Button" parent="BacklogScreen"]
+layout_mode = 0
+offset_left = 500.0
+offset_top = 636.0
+offset_right = 780.0
+offset_bottom = 700.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 26
+text = "とじる [B]"
+
+[node name="EndingScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Heading" type="Label" parent="EndingScreen"]
+layout_mode = 0
+offset_top = 150.0
+offset_right = 1280.0
+offset_bottom = 200.0
+theme_override_colors/font_color = Color(1, 0.55, 0.3, 1)
+theme_override_font_sizes/font_size = 28
+text = "ENDING"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Name" type="Label" parent="EndingScreen"]
+layout_mode = 0
+offset_top = 220.0
+offset_right = 1280.0
+offset_bottom = 330.0
+theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+theme_override_font_sizes/font_size = 64
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Summary" type="Label" parent="EndingScreen"]
+layout_mode = 0
+offset_top = 350.0
+offset_right = 1280.0
+offset_bottom = 460.0
+theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
+theme_override_font_sizes/font_size = 30
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TitleButton" type="Button" parent="EndingScreen"]
+layout_mode = 0
+offset_left = 440.0
+offset_top = 520.0
+offset_right = 840.0
+offset_bottom = 600.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 32
+text = "タイトルへ [Enter]"
