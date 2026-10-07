@@ -22,8 +22,8 @@ jobs:
       - name: gdlint
         run: make lint
 
-  # headless の検証と Web エクスポート。Web ビルドは artifact に残し、関門 3 までは配信しない
-  # (GitHub Pages への配置は関門 3 の後に workflow_dispatch の CD で行う)
+  # headless の検証とエクスポート。Steam に提出するデスクトップ 3 プラットフォームと、検証専用の Web ビルドを artifact に残す。
+  # Steam・TestFlight への配布は関門 3 の後に workflow_dispatch の CD で行い、ここでは配布しない (ADR 0002)
   check-and-export:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -32,15 +32,22 @@ jobs:
       - id: godot
         uses: ./.github/actions/setup-godot
         with:
-          templates: templates/web_nothreads_release.zip
-          cache_key_suffix: web
+          templates: >-
+            templates/linux_release.x86_64 templates/linux_debug.x86_64
+            templates/windows_release_x86_64.exe templates/windows_debug_x86_64.exe
+            templates/windows_release_x86_64_console.exe templates/windows_debug_x86_64_console.exe
+            templates/macos.zip
+            templates/web_nothreads_release.zip
+          cache_key_suffix: desktop-web
       - name: Import assets and boot check
         run: make check GODOT="${{ steps.godot.outputs.godot }}"
       - name: Selfcheck
         run: make selfcheck GODOT="${{ steps.godot.outputs.godot }}"
       - name: Integration
         run: make integration GODOT="${{ steps.godot.outputs.godot }}"
-      - name: Export web build
+      - name: Export desktop builds
+        run: make build-all GODOT="${{ steps.godot.outputs.godot }}"
+      - name: Export web build (verification only)
         run: make build-web GODOT="${{ steps.godot.outputs.godot }}"
       - name: Upload logs
         if: always()
@@ -60,6 +67,15 @@ jobs:
             scripts/**/*.uid
             scenes/**/*.uid
           if-no-files-found: warn
+          retention-days: 7
+      - name: Upload desktop builds
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fast-galge-desktop
+          path: |
+            build/windows/
+            build/macos/
+            build/linux/
           retention-days: 7
       - name: Upload web build
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

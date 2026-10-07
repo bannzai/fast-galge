@@ -3,8 +3,3 @@
 title: fast-galge
 description: 会話がすごい早さで進むギャルゲー
 lang: ja
-# Web ビルドの配置先 (関門 3 の後に CD が置く)。Godot のエクスポート物は Jekyll に処理させずそのまま配信する
-include:
-  - play
-keep_files:
-  - play
