@@ -1,5 +1,5 @@
 # fast-galge の検証・ビルド入口。target 命名は ~/.claude/rules/makefile-target-naming.md に従う
-# (`build-<対象>` = エクスポートだけ。`run` = エディタなしでの起動。`verify` = 人の操作なしで終わる検査)。
+# (`build-<対象>` = エクスポートだけ。`run` = エディタなしでの起動で、引数なしの make の既定)。
 #
 # GODOT は Godot 4.7 の実行ファイル。macOS ローカルの既定値は /Applications/Godot.app。CI では
 # 環境変数 GODOT で Linux バイナリを渡す。ビルド・起動は CI に任せ、このマシンでは実行しない (AGENTS.md「検証方法」)。
@@ -28,11 +28,9 @@ for log in $(1); do test -s "$$log" || { echo "ログがありません: $$log";
 ! grep -i -e 'WARNING' -e 'ERROR' $(1) | grep -v $(WINDOWED_LOG_NOISE) | grep -q .
 endef
 
-.DEFAULT_GOAL := verify
-.PHONY: verify import check selfcheck integration lint test screenshot movie run build-web clean
-
-# 人の操作なしで終わる検査の一括実行 (引数なしの make)。CI の lint job と check-and-export job から build-web を除いた内容
-verify: test
+# 引数なしの make は人が手で遊んで確かめる入口 (run)。lint・検証・エクスポートは CI が行う
+.DEFAULT_GOAL := run
+.PHONY: import check selfcheck integration lint test screenshot movie run build-web build-windows build-macos build-linux build-all clean
 
 # ログ・撮影の出力先。.gdignore を置き、撮影した PNG を Godot に import させない
 $(LOG_DIR)/.gdignore:
@@ -107,9 +105,10 @@ movie: import
 run: import
 	"$(GODOT)" $(ENGINE_LOG) --path .
 
-# Web エクスポート (シングルスレッド)。プリセット名は export_presets.cfg と一致させる。
-# 実行には Godot 4.7 の Web 用 export template (web_nothreads_release.zip) が必要 (AGENTS.md「検証方法」参照)。
-# build/ に .gdignore を置き、エクスポート済みの画像を 2 回目以降の import で Godot に読ませない
+# エクスポート。プリセット名は export_presets.cfg と一致させる。実行には Godot 4.7 の各プラットフォームの export template が
+# 必要 (AGENTS.md「検証方法」参照)。build/ に .gdignore を置き、エクスポート済みの画像を 2 回目以降の import で Godot に
+# 読ませない。配信するのはデスクトップ 3 プラットフォーム (Steam) と iOS (別 issue で足す) で、Web は webtunnel で
+# runner 上のブラウザから遊ぶ検証専用 (ADR 0002)
 build-web: import
 	@mkdir -p build/web
 	@touch build/.gdignore
@@ -120,6 +119,38 @@ build-web: import
 	test -f build/web/index.html
 	test -f build/web/index.wasm
 	test -f build/web/index.pck
+
+build-macos: import
+	@mkdir -p build/macos
+	@touch build/.gdignore
+	"$(GODOT)" --headless $(ENGINE_LOG) --path . --export-release "macOS" build/macos/fast-galge.zip > $(LOG_DIR)/build-macos.log 2>&1; \
+	echo "exit=$$?" >> $(LOG_DIR)/build-macos.log; \
+	tail -n 1 $(LOG_DIR)/build-macos.log | grep -q '^exit=0$$'
+	$(call check_clean_log,$(LOG_DIR)/build-macos.log $(LOG_DIR)/build-macos.godot.log)
+	test -f build/macos/fast-galge.zip
+
+build-windows: import
+	@mkdir -p build/windows
+	@touch build/.gdignore
+	"$(GODOT)" --headless $(ENGINE_LOG) --path . --export-release "Windows Desktop" build/windows/fast-galge.exe > $(LOG_DIR)/build-windows.log 2>&1; \
+	echo "exit=$$?" >> $(LOG_DIR)/build-windows.log; \
+	tail -n 1 $(LOG_DIR)/build-windows.log | grep -q '^exit=0$$'
+	$(call check_clean_log,$(LOG_DIR)/build-windows.log $(LOG_DIR)/build-windows.godot.log)
+	test -f build/windows/fast-galge.exe
+	test -f build/windows/fast-galge.pck
+
+build-linux: import
+	@mkdir -p build/linux
+	@touch build/.gdignore
+	"$(GODOT)" --headless $(ENGINE_LOG) --path . --export-release "Linux" build/linux/fast-galge.x86_64 > $(LOG_DIR)/build-linux.log 2>&1; \
+	echo "exit=$$?" >> $(LOG_DIR)/build-linux.log; \
+	tail -n 1 $(LOG_DIR)/build-linux.log | grep -q '^exit=0$$'
+	$(call check_clean_log,$(LOG_DIR)/build-linux.log $(LOG_DIR)/build-linux.godot.log)
+	test -f build/linux/fast-galge.x86_64
+	test -f build/linux/fast-galge.pck
+
+# Steam に提出するデスクトップ 3 プラットフォームの一括エクスポート
+build-all: build-macos build-windows build-linux
 
 clean:
 	rm -rf build $(LOG_DIR)
