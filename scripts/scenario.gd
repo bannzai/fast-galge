@@ -6,8 +6,9 @@ extends RefCounted
 ## - ラベル: {"label": 名前}
 ## - 移動: {"goto": ラベル, "if_affection": {ヒロインの ID: 必要な好感度}} (if_affection は省ける。あれば満たす時だけ移る)
 ## - エンディング: {"ending": ID, "name": エンディング名, "summary": 一言}
-## 選択肢の goto と timeout は省くと次の行へ進む。時間切れで好感度が下がる相手は、その選択肢の affection に名前がある
-## ヒロイン全員。移動先は必ず後ろの行にする (会話が必ずエンディングで終わるようにするため)。
+## 選択肢の goto と timeout は省くと次の行へ進む。ただし goto を持つ選択肢がある行は timeout を省けない (時間切れが、
+## 次の行に置いた 1 つ目の分岐に流れ込むのを防ぐため)。時間切れで好感度が下がる相手は、その選択肢の affection に
+## 名前があるヒロイン全員。移動先は必ず後ろの行にする (会話が必ずエンディングで終わるようにするため)。
 ## JSON にした理由は documents/adr/0003-scenario-format-json.md
 
 ## 行と選択肢のキー
@@ -112,6 +113,7 @@ static func _choice_errors(lines: Array, index: int) -> Array[String]:
 		return ["choices が %d〜%d 個の配列ではない" % [MIN_OPTIONS, MAX_OPTIONS]]
 	var errors: Array[String] = []
 	var heroines: Dictionary = {}
+	var has_goto: bool = false
 	for option: Variant in options:
 		if not (option is Dictionary):
 			errors.append("選択肢が辞書ではない")
@@ -119,6 +121,7 @@ static func _choice_errors(lines: Array, index: int) -> Array[String]:
 		errors.append_array(_unknown_key_errors(option, OPTION_KEYS))
 		errors.append_array(_text_errors(option, [TEXT], []))
 		if option.has(GOTO):
+			has_goto = true
 			errors.append_array(_target_errors(lines, index, option[GOTO]))
 		if _is_affection(option.get(AFFECTION, {})):
 			heroines.merge(option.get(AFFECTION, {}))
@@ -128,6 +131,8 @@ static func _choice_errors(lines: Array, index: int) -> Array[String]:
 		errors.append("どの選択肢にも affection が無く、時間切れで好感度が下がる相手が決まらない")
 	if line.has(TIMEOUT):
 		errors.append_array(_target_errors(lines, index, line[TIMEOUT]))
+	elif has_goto:
+		errors.append("goto を持つ選択肢があるのに timeout が無い")
 	return errors
 
 

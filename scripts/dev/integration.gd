@@ -196,6 +196,19 @@ func _check_main_ending(game_state: Node, direction: int, expected: String) -> v
 		% ["上げる" if direction > 0 else "下げる", expected, game_state.affection]
 	)
 	_check(game_state.reached_endings.has(expected), "本編: %s が到達の記録に入る" % expected)
+	var estimated: Dictionary = ConversationScript.playthrough(
+		game_state.lines, _option_by_affection.bind(direction)
+	)
+	_check(
+		game_state.affection == estimated["affection"],
+		"本編: キーで選んだ選択肢の好感度が足されている"
+	)
+	_check(
+		not game_state.backlog.any(
+			func(entry: Dictionary) -> bool: return entry["text"] == ConversationScript.TIMEOUT_TEXT
+		),
+		"本編: 時間切れではなく、キーで選んで進んでいる"
+	)
 	await _hold_keys([KEY_ENTER], 1)
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "本編: エンディングからタイトルに戻る")
 

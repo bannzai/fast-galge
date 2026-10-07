@@ -18,6 +18,15 @@ const TIMEOUT_TEXT: String = "……"
 const TIMEOUT_AFFECTION: int = -1
 ## 選択肢の番号の代わりに渡す、時間切れの印 (選択肢の番号は 0 以上のため、重ならない負の値)
 const TIMEOUT: int = -1
+## 1 フレームで会話に進める時間の上限 (秒)。アプリが裏に回った後や描画が止まった後の最初のフレームは経過時間が
+## 数秒以上になり、そのまま進めると読んでいないメッセージが流れて選択肢が時間切れになるため、上限を超えた分は
+## 進めない。10 fps 相当で、通常の描画 (30〜60 fps) の 1 フレームは上限に届かない
+const MAX_FRAME_SECONDS: float = 0.1
+
+
+## 1 フレームの経過時間 delta (秒) のうち、会話に進める時間 (秒)
+static func frame_seconds(delta: float) -> float:
+	return minf(delta, MAX_FRAME_SECONDS)
 
 
 ## 本文 text のメッセージを表示し続ける時間 (秒)

@@ -8,7 +8,7 @@ extends Control
 const GameStateScript := preload("res://scripts/game_state.gd")
 ## シナリオの保存形式のキー
 const ScenarioScript := preload("res://scripts/scenario.gd")
-## 会話のルールの値 (選択肢の制限時間)
+## 会話のルールの値と計算 (選択肢の制限時間、1 フレームで進める時間)
 const ConversationScript := preload("res://scripts/conversation.gd")
 ## 入力のアクションと、GameState に送る操作
 const SCREEN_ACTIONS: Dictionary = {
@@ -66,11 +66,11 @@ func _ready() -> void:
 	_refresh()
 
 
-## 会話の時間を delta 秒進め、表示を更新する (文字送りはここでだけ進み、入力では進まない)
+## 会話の時間を 1 フレームぶん進め、表示を更新する (文字送りはここでだけ進み、入力では進まない)
 func _process(delta: float) -> void:
 	var game_state: Node = _game_state()
 	if game_state != null:
-		game_state.advance(delta)
+		game_state.advance(ConversationScript.frame_seconds(delta))
 	_refresh()
 
 

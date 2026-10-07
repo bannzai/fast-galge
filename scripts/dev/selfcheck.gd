@@ -140,6 +140,14 @@ const INVALID_SCENARIOS: Array[Array] = [
 		],
 		"時間切れの分岐先のラベルが無い",
 	],
+	[
+		[
+			{"choices": [{"text": "a", "affection": {"a": 1}, "goto": "end"}, {"text": "b"}]},
+			{"label": "end"},
+			ENDING_LINE,
+		],
+		"分岐先を持つ選択肢があるのに時間切れの分岐先が無い",
+	],
 	[[{"ending": "end"}], "エンディング名と一言が無い"],
 ]
 ## 本編 (共通パート + 1 人目のヒロインのルート) の所要時間の範囲 (秒)。共通パート 1 分 + ルート 5 分前後
@@ -184,7 +192,7 @@ func _check_transitions() -> void:
 	game_state.free()
 
 
-## メッセージの表示時間 (MESSAGE_SECONDS_CASES) と、選択肢の行で止まる時間の検証
+## メッセージの表示時間 (MESSAGE_SECONDS_CASES)、選択肢の行で止まる時間、1 フレームで進める時間の検証
 func _check_message_seconds() -> void:
 	for case: Array in MESSAGE_SECONDS_CASES:
 		_check(
@@ -196,6 +204,16 @@ func _check_message_seconds() -> void:
 			ConversationScript.stop_seconds(BRANCH_LINES[1]), ConversationScript.CHOICE_SECONDS
 		),
 		"選択肢の行は制限時間だけ止まる"
+	)
+	_check(
+		is_equal_approx(ConversationScript.frame_seconds(1.0 / 60.0), 1.0 / 60.0),
+		"1 フレームの時間: 通常の描画の経過時間はそのまま進める"
+	)
+	_check(
+		is_equal_approx(
+			ConversationScript.frame_seconds(5.0), ConversationScript.MAX_FRAME_SECONDS
+		),
+		"1 フレームの時間: 描画が止まっていた後の長い経過時間は上限までしか進めない"
 	)
 
 
@@ -296,6 +314,31 @@ func _check_main_scenario() -> void:
 		choices >= MAIN_MIN_CHOICES and choices <= MAIN_MAX_CHOICES,
 		"本編: 選択肢が %d〜%d 箇所 (%d 箇所)" % [MAIN_MIN_CHOICES, MAIN_MAX_CHOICES, choices]
 	)
+	_check_main_progress(ConversationScript.playthrough(lines, time_out))
+
+
+## 本編を GameState で操作せずに最後まで進めた時の所要時間・好感度・エンディングが、expected (同じ進め方の
+## playthrough の結果) と一致すること。所要時間の見積もりが実際の会話の進み方とずれていないことを確かめる
+func _check_main_progress(expected: Dictionary) -> void:
+	var game_state: Node = GAME_STATE_SCRIPT.new()
+	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
+	var stepped: float = 0.0
+	while game_state.is_playing():
+		game_state.advance(FAST_FORWARD_STEP)
+		stepped += FAST_FORWARD_STEP
+	_check(
+		absf(stepped - expected["seconds"]) <= FAST_FORWARD_STEP + 0.001,
+		(
+			"本編: GameState で進めた所要時間が見積もりと一致する (%.2f 秒 / 見積もり %.2f 秒)"
+			% [stepped, expected["seconds"]]
+		)
+	)
+	_check(game_state.affection == expected["affection"], "本編: GameState で進めた好感度が見積もりと一致する")
+	_check(
+		game_state.current_line() == expected["ending"],
+		"本編: GameState で進めたエンディングが見積もりと一致する"
+	)
+	game_state.free()
 
 
 ## GameState の会話の進行の検証 (サンプルシナリオ)。自動送り・バックログの間の停止・選択・時間切れ・エンディングの記録・
