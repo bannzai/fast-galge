@@ -21,7 +21,7 @@ Accepted
 - 表示時間・制限時間などの速さの値はシナリオに書かない (`scripts/conversation.gd` の定数だけに置く)
 - 形式の誤り (知らないキー・無いラベル・前へ戻る移動・選択肢の数など) は `scripts/scenario.gd` の `validate` が見つけ、`make selfcheck` が `scenario/` の全ファイルに実行する
 - Resource (`.tres`) は採らない。行ごとのサブリソースとスクリプトの参照 (`ext_resource`・`uid`) をエディタなしで手書きする必要があり、差分が読みにくく、書き間違いがロードの失敗としてしか現れないため
-- JSON はスクリプトから `preload` されないデータのため、エクスポートの `include_filter` に `scenario/*.json` を入れる。エクスポート先を足す時は同じ指定を入れる (`make build-web` が pck に入っていることを確かめる)
+- JSON はスクリプトから `preload` されないデータのため、全プリセットのエクスポートの `include_filter` に `scenario/*.json` を入れる。エクスポート先を足す時は同じ指定を入れる (pck を単体で出力する `make build-web`・`make build-windows`・`make build-linux` が、pck に入っていることを確かめる)
 
 ## Consequences
 
