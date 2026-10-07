@@ -55,7 +55,13 @@ bannzai（以下「提供者」といいます。）は、提供者が提供す�
 
 提供者は、ユーザーから、個人情報保護法の定めに基づき個人情報の開示・訂正・利用停止・消去を求められたときは、ユーザーご本人からのご請求であることを確認の上で、遅滞なく対応します（当該個人情報が存在しないときにはその旨を通知いたします。）。ただし、個人情報保護法その他の法令により提供者が義務を負わない場合は、この限りではありません。請求は下記のお問い合わせ窓口へメールでお送りください。
 
-端末内にのみ保存されているゲームのデータは提供者が保有していないため、ユーザー自身が本ゲームのアンインストールまたは保存データの削除により消去できます。Steam アカウント・Apple ID に関する情報の開示・消去は、それぞれ Valve Corporation・Apple Inc. へ請求してください。
+端末内にのみ保存されているゲームのデータは提供者が保有していないため、ユーザー自身が消去できます。iOS 版はアプリを削除すると、アプリの保存領域ごと消去されます。PC 版は本ゲームをアンインストールしても保存データのフォルダは残るため、次のフォルダを削除してください（Godot エンジンの保存先。 https://docs.godotengine.org/en/4.7/tutorials/io/data_paths.html ）。
+
+- Windows: `%APPDATA%\Godot\app_userdata\fast-galge`
+- macOS: `~/Library/Application Support/Godot/app_userdata/fast-galge`
+- Linux: `~/.local/share/godot/app_userdata/fast-galge`
+
+Steam アカウント・Apple ID に関する情報の開示・消去は、それぞれ Valve Corporation・Apple Inc. へ請求してください。
 
 ## お問い合わせ窓口
 
