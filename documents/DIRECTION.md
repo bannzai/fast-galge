@@ -20,7 +20,7 @@ launched_at:
 | 指標 | 計測元 (skill / コマンド) | 継続のしきい値 | 打ち切り条件 | 転換の条件 |
 | --- | --- | --- | --- | --- |
 | 直近 7 日のゲームページの訪問数 | Cloudflare Web Analytics の訪問数を `/cloudflare-web-analytics-report --site bannzai.github.io` で取得 (JS スニペットは fast-galge のページだけに置く) | >= 30 | < 10 x2 (2 回連続) | 訪問は 30 以上だがエンディング到達率が 20% 未満なら、速度の調整 (ゆっくりモードの既定化) か 1 ルートの短縮に転換 |
-| 直近 7 日のエンディング到達率 (`/fast-galge/ending/*` の PV ÷ `/fast-galge/` の PV) | 同上 (エンディング表示時に `history.pushState` で `/fast-galge/ending/<id>` へ移り、スニペットの SPA 計測で PV を送る) | >= 20% | < 5% x2 | 到達率は高いが訪問が増えないなら、SNS で共有しやすい結果画面 (エンディング名と所要時間の画像) に転換 |
+| 直近 7 日のエンディング到達率 (`/fast-galge/ending/*` の PV ÷ ゲームのページ `/fast-galge/play/` の PV) | 同上 (エンディング表示時に `history.pushState` で `/fast-galge/ending/<id>` へ移り、スニペットの SPA 計測で PV を送る) | >= 20% | < 5% x2 | 到達率は高いが訪問が増えないなら、SNS で共有しやすい結果画面 (エンディング名と所要時間の画像) に転換 |
 
 ## 必要な機能
 

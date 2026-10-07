@@ -30,11 +30,11 @@
 | スクリーンショット (タイトル・会話中・バックログ。headless の検証では見た目の崩れを検出できない) | `make screenshot` | exit 0 かつ `tmp/screenshot-*.png` が生成される |
 | 起動の録画 (操作なしの起動〜タイトルの表示。起動直後の描画崩れ・真っ黒を検出する) | `make movie` | exit 0 かつ `tmp/movie.mp4` が生成され、末尾のフレームの輝度平均が基準以上 (ffmpeg が必要) |
 | ゲームをエディタなしで起動 (人が遊んで確かめる。アセットのインポートを含む) | `make run` | ウィンドウが開きタイトル画面が表示される |
-| Web エクスポート | `make build-web` | exit 0 で `build/web/` に `index.html` / `index.wasm` / `index.pck` が生成される |
+| Web エクスポート | `make build-web` | exit 0 で `build/web/` に `index.html` / `index.wasm` / `index.pck` が生成され、`tmp/build-web.log` に WARNING / ERROR 行がない |
 
 - 画面や状態を追加したら `scripts/dev/screenshot.gd` の `_capture_scenes()` に撮影を足し、入力で変わる振る舞いは `scripts/dev/integration.gd` に検証を足す。純粋な計算は `scripts/dev/selfcheck.gd` に検証を足す
 - Godot の起動にはすべて `--log-file` を付ける (Makefile の `ENGINE_LOG`)。付けないと Godot が `user://` にログを書こうとし、書き込みを拒否するサンドボックスでは起動に失敗する
-- ログは `tmp/*.log` に保存して全文を WARNING / ERROR 検査する (`tail` で切り詰めて判定しない)
+- ログは `tmp/*.log` に保存し、target の標準出力と `--log-file` の Godot 自身のログ (`tmp/<target>.godot.log`) の両方の全文を WARNING / ERROR 検査する (`tail` で切り詰めて判定しない。Makefile の `check_clean_log`)
 - Web エクスポートには Godot 4.7 の Web 用 export template (`web_nothreads_release.zip`) が要る。CI は `.github/actions/setup-godot` が tpz から必要なテンプレートだけを取り出してキャッシュする
 
 ## 規約

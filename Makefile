@@ -19,6 +19,13 @@ WINDOWED_LOG_NOISE := -e 'Could not set V-Sync mode' -e 'IMKCFRunLoopWakeUpRelia
 # 数秒あれば足り、CI の録画時間と artifact のサイズを抑えるため
 MOVIE_FRAMES ?= 150
 
+# 引数のログ (target の標準出力・標準エラーの保存先と、--log-file の Godot 自身のログ) の全文に WARNING / ERROR の行が
+# 無いことを検査する。Godot は診断を記録しても exit 0 で終わることがあるため、exit code だけで判定しない。
+# 描画付き起動だけで出る既知のノイズ (WINDOWED_LOG_NOISE) は除く
+define check_clean_log
+! grep -i -e 'WARNING' -e 'ERROR' $(1) | grep -v $(WINDOWED_LOG_NOISE) | grep -q .
+endef
+
 .DEFAULT_GOAL := verify
 .PHONY: verify import check selfcheck integration lint test screenshot movie run build-web clean
 
@@ -35,6 +42,7 @@ import: $(LOG_DIR)/.gdignore
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --import > $(LOG_DIR)/import.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/import.log; \
 	tail -n 1 $(LOG_DIR)/import.log | grep -q '^exit=0$$'
+	$(call check_clean_log,$(LOG_DIR)/import.log $(LOG_DIR)/import.godot.log)
 
 # 起動検証。メインシーンとスクリプトがロードでき、_ready が走ることを boot 出力で確認する
 check: import
@@ -42,7 +50,7 @@ check: import
 	echo "exit=$$?" >> $(LOG_DIR)/check.log; \
 	grep -q '^fast-galge boot$$' $(LOG_DIR)/check.log
 	tail -n 1 $(LOG_DIR)/check.log | grep -q '^exit=0$$'
-	! grep -i -e 'WARNING' -e 'ERROR' $(LOG_DIR)/check.log
+	$(call check_clean_log,$(LOG_DIR)/check.log $(LOG_DIR)/check.godot.log)
 
 # 画面の遷移表・全シーンのロード・全素材の assets/CREDITS.md への記録の検証 (headless)
 selfcheck: import
@@ -50,7 +58,7 @@ selfcheck: import
 	echo "exit=$$?" >> $(LOG_DIR)/selfcheck.log; \
 	grep -q '^selfcheck OK$$' $(LOG_DIR)/selfcheck.log
 	tail -n 1 $(LOG_DIR)/selfcheck.log | grep -q '^exit=0$$'
-	! grep -i -e 'WARNING' -e 'ERROR' $(LOG_DIR)/selfcheck.log
+	$(call check_clean_log,$(LOG_DIR)/selfcheck.log $(LOG_DIR)/selfcheck.godot.log)
 
 # キー入力でメインシーンを動かす入力統合テスト (headless)。タイトル → 会話中 → バックログ → 会話中の画面の遷移と、
 # 見出しの追従を確認する
@@ -59,7 +67,7 @@ integration: import
 	echo "exit=$$?" >> $(LOG_DIR)/integration.log; \
 	grep -q '^integration OK$$' $(LOG_DIR)/integration.log
 	tail -n 1 $(LOG_DIR)/integration.log | grep -q '^exit=0$$'
-	! grep -i -e 'WARNING' -e 'ERROR' $(LOG_DIR)/integration.log
+	$(call check_clean_log,$(LOG_DIR)/integration.log $(LOG_DIR)/integration.godot.log)
 
 # GDScript の lint (gdtoolkit の gdlint。設定は ./gdlintrc)
 lint:
@@ -75,7 +83,7 @@ screenshot: import
 	"$(GODOT)" $(ENGINE_LOG) --path . $(WINDOWED_FLAGS) --script res://scripts/dev/screenshot.gd > $(LOG_DIR)/screenshot.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/screenshot.log; \
 	tail -n 1 $(LOG_DIR)/screenshot.log | grep -q '^exit=0$$'
-	! grep -i -e 'WARNING' -e 'ERROR' $(LOG_DIR)/screenshot.log | grep -v $(WINDOWED_LOG_NOISE) | grep -q .
+	$(call check_clean_log,$(LOG_DIR)/screenshot.log $(LOG_DIR)/screenshot.godot.log)
 	ls $(LOG_DIR)/screenshot-*.png
 
 # 操作を伴わない起動〜タイトル表示を Movie Maker モードで録画して mp4 にする (起動直後の描画崩れ・真っ黒を
@@ -86,7 +94,7 @@ movie: import
 	"$(GODOT)" $(ENGINE_LOG) --path . $(WINDOWED_FLAGS) --write-movie $(LOG_DIR)/movie.avi --fixed-fps 30 --quit-after $(MOVIE_FRAMES) > $(LOG_DIR)/movie.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/movie.log; \
 	tail -n 1 $(LOG_DIR)/movie.log | grep -q '^exit=0$$'
-	! grep -i -e 'WARNING' -e 'ERROR' $(LOG_DIR)/movie.log | grep -v $(WINDOWED_LOG_NOISE) | grep -q .
+	$(call check_clean_log,$(LOG_DIR)/movie.log $(LOG_DIR)/movie.godot.log)
 	ffmpeg -loglevel error -y -i $(LOG_DIR)/movie.avi -c:v libx264 -pix_fmt yuv420p $(LOG_DIR)/movie.mp4
 	rm -f $(LOG_DIR)/movie.avi
 	ffmpeg -v error -sseof -1 -i $(LOG_DIR)/movie.mp4 -frames:v 1 -vf signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=- -f null - \
@@ -101,7 +109,10 @@ run: import
 # 実行には Godot 4.7 の Web 用 export template (web_nothreads_release.zip) が必要 (AGENTS.md「検証方法」参照)
 build-web: import
 	@mkdir -p build/web
-	"$(GODOT)" --headless $(ENGINE_LOG) --path . --export-release "Web" build/web/index.html
+	"$(GODOT)" --headless $(ENGINE_LOG) --path . --export-release "Web" build/web/index.html > $(LOG_DIR)/build-web.log 2>&1; \
+	echo "exit=$$?" >> $(LOG_DIR)/build-web.log; \
+	tail -n 1 $(LOG_DIR)/build-web.log | grep -q '^exit=0$$'
+	$(call check_clean_log,$(LOG_DIR)/build-web.log $(LOG_DIR)/build-web.godot.log)
 	test -f build/web/index.html
 	test -f build/web/index.wasm
 	test -f build/web/index.pck

@@ -33,10 +33,12 @@ func _capture_scenes() -> bool:
 	return true
 
 
-## 描画が反映されるまで 2 フレーム待ってから viewport を path に PNG で保存する。失敗したら quit(1) する
+## 描画が反映されるまで 2 フレームと描画の完了 (frame_post_draw) を待ってから viewport を path に PNG で保存する。
+## 失敗したら quit(1) する
 func _capture(path: String) -> bool:
 	await process_frame
 	await process_frame
+	await RenderingServer.frame_post_draw
 	var status: Error = root.get_viewport().get_texture().get_image().save_png(path)
 	if status != OK:
 		push_error("スクリーンショット保存失敗: %s (%s)" % [path, error_string(status)])
