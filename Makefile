@@ -1,5 +1,5 @@
 # fast-galge の検証・ビルド入口。target 命名は ~/.claude/rules/makefile-target-naming.md に従う
-# (`build-<対象>` = エクスポートだけ。`run` = エディタなしでの起動。`verify` = 人の操作なしで終わる検査)。
+# (`build-<対象>` = エクスポートだけ。`run` = エディタなしでの起動で、引数なしの make の既定)。
 #
 # GODOT は Godot 4.7 の実行ファイル。macOS ローカルの既定値は /Applications/Godot.app。CI では
 # 環境変数 GODOT で Linux バイナリを渡す。ビルド・起動は CI に任せ、このマシンでは実行しない (AGENTS.md「検証方法」)。
@@ -28,11 +28,9 @@ for log in $(1); do test -s "$$log" || { echo "ログがありません: $$log";
 ! grep -i -e 'WARNING' -e 'ERROR' $(1) | grep -v $(WINDOWED_LOG_NOISE) | grep -q .
 endef
 
-.DEFAULT_GOAL := verify
-.PHONY: verify import check selfcheck integration lint test screenshot movie run build-web build-windows build-macos build-linux build-all clean
-
-# 人の操作なしで終わる検査の一括実行 (引数なしの make)。CI の lint job と check-and-export job からエクスポート (build-*) を除いた内容
-verify: test
+# 引数なしの make は人が手で遊んで確かめる入口 (run)。lint・検証・エクスポートは CI が行う
+.DEFAULT_GOAL := run
+.PHONY: import check selfcheck integration lint test screenshot movie run build-web build-windows build-macos build-linux build-all clean
 
 # ログ・撮影の出力先。.gdignore を置き、撮影した PNG を Godot に import させない
 $(LOG_DIR)/.gdignore:

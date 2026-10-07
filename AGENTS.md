@@ -27,10 +27,10 @@
 | 起動検証 (メインシーン・スクリプトのロード) | `make check` | exit 0 かつ `tmp/check.log` に `fast-galge boot` が出力され、WARNING / ERROR 行がない |
 | ロジック検証 (画面の遷移表、全シーンのロード、全素材が `assets/CREDITS.md` に記録されていること) | `make selfcheck` | exit 0 かつ `tmp/selfcheck.log` に `selfcheck OK` が出力され、WARNING / ERROR 行がない |
 | 入力統合テスト (キー入力でタイトル → 会話中 → バックログ → 会話中の遷移と見出しの追従) | `make integration` | exit 0 かつ `tmp/integration.log` に `integration OK` が出力され、WARNING / ERROR 行がない |
-| headless 検証の一括実行 (lint → check → selfcheck → integration) | `make test` (引数なしの `make` = `verify` も同じ) | exit 0 |
+| headless 検証の一括実行 (lint → check → selfcheck → integration) | `make test` | exit 0 |
 | スクリーンショット (タイトル・会話中・バックログ。headless の検証では見た目の崩れを検出できない) | `make screenshot` | exit 0 かつ `tmp/screenshot-*.png` が生成される |
 | 起動の録画 (操作なしの起動〜タイトルの表示。起動直後の描画崩れ・真っ黒を検出する) | `make movie` | exit 0 かつ `tmp/movie.mp4` が生成され、末尾のフレームの輝度平均が基準以上 (ffmpeg が必要) |
-| ゲームをエディタなしで起動 (人が遊んで確かめる。アセットのインポートを含む) | `make run` | ウィンドウが開きタイトル画面が表示される |
+| ゲームをエディタなしで起動 (人が遊んで確かめる。アセットのインポートを含む。引数なしの `make` の既定) | `make run` | ウィンドウが開きタイトル画面が表示される |
 | デスクトップエクスポート (Steam に提出する 3 プラットフォーム) | `make build-macos` / `make build-windows` / `make build-linux` / `make build-all` | exit 0 で `build/<platform>/` に成果物が生成され、`tmp/build-<platform>.log` に WARNING / ERROR 行がない |
 | Web エクスポート (検証専用。webtunnel で開く) | `make build-web` | exit 0 で `build/web/` に `index.html` / `index.wasm` / `index.pck` が生成され、`tmp/build-web.log` に WARNING / ERROR 行がない |
 
