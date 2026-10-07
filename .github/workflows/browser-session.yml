@@ -1,0 +1,62 @@
+name: browser-session
+# webtunnel skill の caller workflow。GitHub Actions の runner 上で Web エクスポートを配信し、Chromium を Tailscale 経由で
+# ローカルの agent-browser から操作する (設計の SSOT は bannzai/webtunnel の PROJECT.md)。
+# run-name は local/webtunnel CLI が run を特定するキーのためこの形式を維持する
+run-name: "session=${{ inputs.session }} duration=${{ inputs.duration_minutes }}m"
+on:
+  workflow_dispatch: # fork PR に Secrets を渡さないため workflow_dispatch のみ
+    # session / duration_minutes は local/webtunnel の up が常に送るため宣言必須
+    # (未定義の input を送ると dispatch が拒否される)
+    inputs:
+      session:
+        required: true
+        default: dev # local/webtunnel が session 名を省いた時の名前。tailnet のホスト名 webtunnel-<session> になる
+      duration_minutes:
+        required: true
+        default: "60" # 1 回の動作確認で使う上限。放置した run を 1 時間で自動終了させ、Actions の枠を使い切らないため
+      start_url:
+        required: false
+        default: "" # 空なら配信サーバの URL を開く (session.yml 側の既定に合わせる)
+      record:
+        required: false
+        default: "true"
+      preview:
+        required: false
+        default: "true"
+      setup_script:
+        required: false
+        default: ".webtunnel/setup.sh"
+      software_webgl:
+        required: false
+        default: "true" # Godot の Web エクスポートは WebGL2 が要るため常に true (Xvfb 上の Chromium は既定で WebGL2 が無効)
+jobs:
+  session:
+    permissions:
+      id-token: write
+      contents: read
+    uses: bannzai/webtunnel/.github/workflows/session.yml@0a0657211ab8f584ce13333811ff8982e4879ef4 # main
+    with:
+      session: ${{ inputs.session }}
+      duration_minutes: ${{ inputs.duration_minutes }}
+      start_url: ${{ inputs.start_url }}
+      record: ${{ inputs.record }}
+      preview: ${{ inputs.preview }}
+      setup_script: ${{ inputs.setup_script }}
+      software_webgl: ${{ inputs.software_webgl }}
+      # Godot のバイナリと Web 用 export template を取得し、インポートと Web エクスポートを行う。
+      # リリース名・プリセット名は .github/actions/setup-godot と export_presets.cfg に合わせる
+      setup_command: |
+        set -e
+        GODOT_RELEASE=4.7-stable
+        GODOT_VERSION_DIR=4.7.stable
+        mkdir -p ~/godot-bin ~/.local/share/godot/export_templates/${GODOT_VERSION_DIR}
+        curl -sL -o /tmp/godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+        unzip -q /tmp/godot.zip -d ~/godot-bin
+        curl -sL -o /tmp/templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+        unzip -q -o -j /tmp/templates.tpz templates/version.txt templates/web_nothreads_release.zip -d ~/.local/share/godot/export_templates/${GODOT_VERSION_DIR}
+        make build-web GODOT=~/godot-bin/Godot_v${GODOT_RELEASE}_linux.x86_64
+      start_command: python3 -m http.server "$PORT" --bind 127.0.0.1 --directory build/web
+      port: "8080"
+    secrets:
+      TS_OIDC_CLIENT_ID: ${{ secrets.TS_OIDC_CLIENT_ID }}
+      TS_OIDC_AUDIENCE: ${{ secrets.TS_OIDC_AUDIENCE }}
