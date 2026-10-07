@@ -68,6 +68,9 @@ jobs:
             scenes/**/*.uid
           if-no-files-found: warn
           retention-days: 7
+      # Linux の実行ファイルは tar にまとめる (upload-artifact は実行権限を保持せず、展開後に起動できなくなるため)
+      - name: Pack Linux build
+        run: tar -czf build/fast-galge-linux.tar.gz -C build/linux .
       - name: Upload desktop builds
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -75,7 +78,7 @@ jobs:
           path: |
             build/windows/
             build/macos/
-            build/linux/
+            build/fast-galge-linux.tar.gz
           retention-days: 7
       - name: Upload web build
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

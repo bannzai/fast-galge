@@ -16,7 +16,7 @@
 - 見た目の確認は artifact `fast-galge-screenshot-and-movie` を `gh run download <run ID> -n fast-galge-screenshot-and-movie -D tmp/artifact` で取得し、PNG と、mp4 の末尾のフレーム (`ffmpeg -sseof -1 -i tmp/artifact/movie.mp4 -frames:v 1 tmp/artifact/movie-last.png`) を目視してから完了報告する
 - ブラウザでの動作確認 (Web ビルドを実際に開いて操作する) は webtunnel skill (`~/.claude/skills/webtunnel/SKILL.md`) で行う。`WEBTUNNEL_REPO=bannzai/fast-galge` で `up <session> --software-webgl --wait` を実行すると、runner が `.github/workflows/browser-session.yml` の手順で Web エクスポートを作って配信し、`scripts/godot-web.sh --session <session>` でクリック・キー入力・撮影ができる。Secrets (`TS_OIDC_CLIENT_ID` / `TS_OIDC_AUDIENCE`) の登録が前提 (未登録なら「ユーザー作業の一覧」issue の項目)
 - Web ビルドをローカルで開く時は artifact `fast-galge-web` を `gh run download <run ID> -n fast-galge-web -D tmp/artifact-web` で取得し (artifact 名を 1 つ指定した時は指定したディレクトリの直下に展開される)、`python3 -m http.server 8000 --directory tmp/artifact-web` で配信してブラウザで開く (Web ビルドは file:// の直開きでは動かない。ローカルのブラウザは runner の代わりにならないため、人が遊ぶ時だけ)
-- 人がデスクトップ版を遊ぶ時は artifact `fast-galge-desktop` を取得し、macOS なら `macos/fast-galge.zip` を展開してアプリを開く (未署名のため Gatekeeper の警告が出る)
+- 人がデスクトップ版を遊ぶ時は artifact `fast-galge-desktop` を取得し、macOS なら `macos/fast-galge.zip` を展開してアプリを開く (未署名のため Gatekeeper の警告が出る)。Linux は実行権限を保つため `fast-galge-linux.tar.gz` にまとめてあり、展開して `fast-galge.x86_64` を実行する
 
 各 target の内容と成功条件 (CI が実行する。`GODOT` 未指定時の既定は macOS の `/Applications/Godot.app/Contents/MacOS/Godot`、CI では Linux バイナリを渡す):
 
