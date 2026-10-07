@@ -19,3 +19,6 @@ build/**/*.import
 
 # macOS
 .DS_Store
+
+# gdlint (gdtoolkit) の実行で生成される LLVM のプロファイル
+default.profraw
