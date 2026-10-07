@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Install gdtoolkit
+        run: pip install "gdtoolkit==4.*"
+      - name: gdlint
+        run: make lint
+
+  # headless の検証と Web エクスポート。Web ビルドは artifact に残し、関門 3 までは配信しない
+  # (GitHub Pages への配置は関門 3 の後に workflow_dispatch の CD で行う)
+  check-and-export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - id: godot
+        uses: ./.github/actions/setup-godot
+        with:
+          templates: templates/web_nothreads_release.zip
+          cache_key_suffix: web
+      - name: Import assets and boot check
+        run: make check GODOT="${{ steps.godot.outputs.godot }}"
+      - name: Selfcheck
+        run: make selfcheck GODOT="${{ steps.godot.outputs.godot }}"
+      - name: Integration
+        run: make integration GODOT="${{ steps.godot.outputs.godot }}"
+      - name: Export web build
+        run: make build-web GODOT="${{ steps.godot.outputs.godot }}"
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fast-galge-check-logs
+          path: tmp/*.log
+          if-no-files-found: warn
+          retention-days: 7
+      # Godot が import で生成する .uid (リソース参照に使う。コミット対象) を、Godot をローカルで動かさない
+      # 開発マシンから取り込めるように artifact に残す。コミット済みなら差分は出ない
+      - name: Upload generated uid files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fast-galge-uid
+          path: |
+            scripts/**/*.uid
+            scenes/**/*.uid
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload web build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fast-galge-web
+          path: build/web/
+          retention-days: 7
+
+  # 描画付きの検証。headless の check / selfcheck / integration では見た目の崩れを検出できないため、
+  # Xvfb + Mesa llvmpipe (ソフトウェア GL) 上で代表画面の撮影と起動の録画を行い artifact に残す。
+  # PR を開いた agent は artifact をダウンロードして PNG と mp4 を目視してから完了報告する (AGENTS.md「検証方法」)
+  screenshot-and-movie:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - id: godot
+        uses: ./.github/actions/setup-godot
+        with:
+          # エディタバイナリで動かすため export templates は要らない (空なら tpz を取得しない)
+          templates: ""
+          cache_key_suffix: editor-only
+      - name: Start Xvfb with software GL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb ffmpeg libgl1-mesa-dri \
+            libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxkbcommon0
+          nohup Xvfb :99 -screen 0 1280x720x24 > "$RUNNER_TEMP/xvfb.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            [ -S /tmp/.X11-unix/X99 ] && break
+            sleep 1
+          done
+          [ -S /tmp/.X11-unix/X99 ] || { cat "$RUNNER_TEMP/xvfb.log"; exit 1; }
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"
+      - name: Screenshot
+        run: make screenshot GODOT="${{ steps.godot.outputs.godot }}"
+      - name: Movie
+        run: make movie GODOT="${{ steps.godot.outputs.godot }}"
+      - name: Upload screenshots and movie
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fast-galge-screenshot-and-movie
+          path: |
+            tmp/screenshot-*.png
+            tmp/movie.mp4
+            tmp/*.log
+          if-no-files-found: warn
+          retention-days: 7
