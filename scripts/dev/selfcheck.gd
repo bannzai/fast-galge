@@ -360,6 +360,10 @@ func _check_game_state_conversation() -> void:
 	_fast_forward(game_state, _is_choosing.bind(game_state))
 	_check(game_state.backlog.size() == 4, "進行: 選択肢までのメッセージが自動で流れてバックログに積まれる")
 	_check(not game_state.choose(2), "進行: 無い番号の選択肢は選べない")
+	_check(
+		not game_state.choose(-1) and _is_choosing(game_state) and game_state.affection.is_empty(),
+		"進行: 負の番号では選べず、時間切れの扱いにもならない"
+	)
 	_check(game_state.choose(0), "進行: 選択肢を選べる")
 	_check(game_state.affection == {"hina": 1}, "進行: 選んだ選択肢の好感度が足される")
 	_check(

@@ -91,7 +91,8 @@ func advance(delta: float) -> void:
 ## 会話中に選択肢が出ていれば option_index 番目 (0 始まり) を選ぶ。選べたら true。
 ## 選んだ結果を好感度とバックログに積むため冪等ではない
 func choose(option_index: int) -> bool:
-	if not is_playing() or option_index >= current_line().get(ScenarioScript.CHOICES, []).size():
+	var options: Array = current_line().get(ScenarioScript.CHOICES, [])
+	if not is_playing() or option_index < 0 or option_index >= options.size():
 		return false
 	elapsed = 0.0
 	_pick(option_index)

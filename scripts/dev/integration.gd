@@ -11,6 +11,9 @@ const GameStateScript := preload("res://scripts/game_state.gd")
 const WAIT_FRAME_LIMIT: int = 36000
 ## バックログを開いている間に会話が止まることを確かめるために待つ時間 (秒)。メッセージの表示時間の上限より長い
 const PAUSE_CHECK_TIME: float = 1.0
+## 描画が止まっていた後の 1 フレームとしてメインシーンに渡す経過時間 (秒)。上限なしに進めると、サンプルシナリオの
+## 選択肢の時間切れまで過ぎる長さ
+const LONG_FRAME_TIME: float = 5.0
 
 
 ## tree の準備が終わってから _run() を始める (シーンの追加は _initialize() の後でないとできない)
@@ -58,6 +61,14 @@ func _check_sample_with_keys(game_state: Node, main: Control) -> void:
 	_check(game_state.screen == GameStateScript.Screen.PLAYING, "Enter で会話中になる")
 	_check(main.get_node("ConversationScreen").visible, "会話中の画面が出ている")
 	_check(message_label.text == game_state.lines[0]["text"], "最初のメッセージが表示される")
+	main.call("_process", LONG_FRAME_TIME)
+	_check(
+		(
+			game_state.backlog.size() == 1
+			and game_state.elapsed <= ConversationScript.MAX_FRAME_SECONDS * 2.0
+		),
+		"描画が止まっていた後の長い 1 フレームでは、上限までしか会話が進まない"
+	)
 	await _hold_keys([KEY_ENTER], 1)
 	await _hold_keys([KEY_SPACE], 1)
 	await _click(main.get_node("ConversationScreen/MessageWindow"))
