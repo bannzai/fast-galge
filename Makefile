@@ -19,10 +19,12 @@ WINDOWED_LOG_NOISE := -e 'Could not set V-Sync mode' -e 'IMKCFRunLoopWakeUpRelia
 # 数秒あれば足り、CI の録画時間と artifact のサイズを抑えるため
 MOVIE_FRAMES ?= 150
 
-# 引数のログ (target の標準出力・標準エラーの保存先と、--log-file の Godot 自身のログ) の全文に WARNING / ERROR の行が
-# 無いことを検査する。Godot は診断を記録しても exit 0 で終わることがあるため、exit code だけで判定しない。
-# 描画付き起動だけで出る既知のノイズ (WINDOWED_LOG_NOISE) は除く
+# 引数のログ (target の標準出力・標準エラーの保存先と、--log-file の Godot 自身のログ) がすべて存在して空でなく、
+# 全文に WARNING / ERROR の行が無いことを検査する。Godot は診断を記録しても exit 0 で終わることがあるため、exit code
+# だけで判定しない。ログが無いと grep が何も出さずに検査が通ってしまうため、先に存在を確かめる (--log-file が効かずに
+# Godot のログが書かれなかった時に気づくため)。描画付き起動だけで出る既知のノイズ (WINDOWED_LOG_NOISE) は除く
 define check_clean_log
+for log in $(1); do test -s "$$log" || { echo "ログがありません: $$log"; exit 1; }; done
 ! grep -i -e 'WARNING' -e 'ERROR' $(1) | grep -v $(WINDOWED_LOG_NOISE) | grep -q .
 endef
 
@@ -106,9 +108,11 @@ run: import
 	"$(GODOT)" $(ENGINE_LOG) --path .
 
 # Web エクスポート (シングルスレッド)。プリセット名は export_presets.cfg と一致させる。
-# 実行には Godot 4.7 の Web 用 export template (web_nothreads_release.zip) が必要 (AGENTS.md「検証方法」参照)
+# 実行には Godot 4.7 の Web 用 export template (web_nothreads_release.zip) が必要 (AGENTS.md「検証方法」参照)。
+# build/ に .gdignore を置き、エクスポート済みの画像を 2 回目以降の import で Godot に読ませない
 build-web: import
 	@mkdir -p build/web
+	@touch build/.gdignore
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --export-release "Web" build/web/index.html > $(LOG_DIR)/build-web.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/build-web.log; \
 	tail -n 1 $(LOG_DIR)/build-web.log | grep -q '^exit=0$$'

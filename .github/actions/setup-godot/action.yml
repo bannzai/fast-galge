@@ -43,9 +43,9 @@ runs:
         TEMPLATES: ${{ inputs.templates }}
       run: |
         mkdir -p ~/godot-bin ~/.local/share/godot/export_templates/${GODOT_VERSION_DIR}
-        curl -sL -o /tmp/godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
+        curl -fsSL -o /tmp/godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip"
         unzip -q /tmp/godot.zip -d ~/godot-bin
-        curl -sL -o /tmp/templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
+        curl -fsSL -o /tmp/templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz"
         # TEMPLATES は空白区切りの複数ファイルを渡すため意図的に単語分割する
         # shellcheck disable=SC2086
         unzip -q -o -j /tmp/templates.tpz "templates/version.txt" $TEMPLATES \
