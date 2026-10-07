@@ -12,7 +12,7 @@ bannzai（以下「提供者」といいます。）は、提供者が提供す�
 
 ### アクセス解析（Cloudflare Web Analytics）
 
-本ゲームのページでは、利用状況を把握するために Cloudflare, Inc. が提供する Cloudflare Web Analytics を利用します。Cloudflare Web Analytics は、ページの表示回数・表示したページの URL・参照元・ブラウザと OS の種類・おおよその国を、個人を特定しない集計情報として収集します。Cookie やブラウザのローカルストレージを使わず、IP アドレスやユーザーエージェントの文字列を個人の追跡に用いない設計であると Cloudflare 社が説明しています（ https://www.cloudflare.com/web-analytics/ ）。収集したデータは Cloudflare 社のプライバシーポリシー（ https://www.cloudflare.com/privacypolicy/ ）に従って同社が取り扱い、提供者はその集計結果を閲覧します。提供者が閲覧できるデータの保持期間は Cloudflare 社の定めに従います（詳細な集計は 6 か月、概算の集計は最長 1 年の目安）。
+本ゲームのページでは、利用状況を把握するために Cloudflare, Inc. が提供する Cloudflare Web Analytics を利用します（本ゲームの公開と同時に有効にします。公開前の紹介ページには計測を置いていません）。Cloudflare Web Analytics は、ページの表示回数・表示したページの URL・参照元・ブラウザと OS の種類・おおよその国を、個人を特定しない集計情報として収集します。Cookie やブラウザのローカルストレージを使わず、IP アドレスやユーザーエージェントの文字列を個人の追跡に用いない設計であると Cloudflare 社が説明しています（ https://www.cloudflare.com/web-analytics/ ）。収集したデータは Cloudflare 社のプライバシーポリシー（ https://www.cloudflare.com/privacypolicy/ ）に従って同社が取り扱い、提供者はその集計結果を閲覧します。提供者が閲覧できるデータの保持期間は Cloudflare 社の定めに従います（詳細な集計は 6 か月、概算の集計は最長 1 年の目安）。
 
 ### 配信基盤（GitHub Pages）
 

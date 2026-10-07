@@ -31,7 +31,7 @@ endef
 .DEFAULT_GOAL := verify
 .PHONY: verify import check selfcheck integration lint test screenshot movie run build-web clean
 
-# 人の操作なしで終わる検査の一括実行 (引数なしの make)。CI の lint / check-and-export job と同じ内容
+# 人の操作なしで終わる検査の一括実行 (引数なしの make)。CI の lint job と check-and-export job から build-web を除いた内容
 verify: test
 
 # ログ・撮影の出力先。.gdignore を置き、撮影した PNG を Godot に import させない
