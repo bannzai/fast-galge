@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>fast-galge｜会話がすごい早さで進むギャルゲー</title>
+  <meta name="description" content="fast-galge は、文字送りが止められないほど速く、選択肢に 2 秒の制限時間があるギャルゲー。それ以外は普通にしっかりしている。ブラウザで無料、1 プレイ 5 分。開発中。">
+  <link rel="canonical" href="https://bannzai.github.io/fast-galge/">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="fast-galge">
+  <meta property="og:title" content="fast-galge｜会話がすごい早さで進むギャルゲー">
+  <meta property="og:description" content="文字送りは止められない。選択肢は 2 秒。それ以外は普通にしっかりしているギャルゲー。ブラウザで無料、1 プレイ 5 分。">
+  <meta property="og:url" content="https://bannzai.github.io/fast-galge/">
+  <meta property="og:image" content="https://bannzai.github.io/fast-galge/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="fast-galge">
+  <meta name="twitter:description" content="文字送りは止められない。選択肢は 2 秒。それ以外は普通にしっかりしているギャルゲー。">
+  <meta name="twitter:image" content="https://bannzai.github.io/fast-galge/og.png">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "fast-galge",
+    "description": "文字送りが止められないほど速く、選択肢に制限時間があるギャルゲー。ブラウザで無料、1 プレイ 5 分。",
+    "genre": ["Visual Novel", "Dating Sim", "Comedy"],
+    "gamePlatform": "Web Browser",
+    "inLanguage": "ja",
+    "url": "https://bannzai.github.io/fast-galge/",
+    "image": "https://bannzai.github.io/fast-galge/og.png",
+    "author": { "@type": "Person", "name": "bannzai" }
+  }
+  </script>
+  <style>
+    :root {
+      --ink: #17141f;
+      --ink-2: #241f2e;
+      --paper: #fff2d9;
+      --accent: #ff8c4b;
+      --accent-2: #ffd166;
+      --text-light: #f4efe6;
+      --text-dark: #17141f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+      line-height: 1.8;
+      color: var(--text-light);
+      background: var(--ink);
+    }
+    a { color: inherit; }
+    a:focus-visible { outline: 3px solid var(--accent-2); outline-offset: 3px; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 0 20px; }
+    header { padding: 72px 0 48px; position: relative; overflow: hidden; }
+    .lines { position: absolute; inset: 0; pointer-events: none; opacity: 0.35; }
+    .lines span {
+      position: absolute; height: 10px; background: var(--accent); transform: skewX(-30deg);
+    }
+    header h1 { font-size: clamp(2.6rem, 9vw, 5rem); letter-spacing: 0.04em; margin: 0; line-height: 1.05; position: relative; }
+    header .lead { font-size: 1.25rem; margin: 24px 0 0; max-width: 32em; position: relative; }
+    header .lead strong { color: var(--accent-2); }
+    .status { display: inline-block; margin-top: 28px; padding: 10px 18px; border: 2px solid var(--accent); font-weight: bold; position: relative; }
+    .window {
+      margin: 48px 0 0; padding: 20px 24px; background: var(--paper); color: var(--text-dark);
+      border: 4px solid var(--ink-2); box-shadow: 8px 8px 0 var(--accent); position: relative;
+    }
+    .window .name { font-weight: bold; color: #a3421a; margin: 0 0 4px; }
+    .window p { margin: 0; }
+    .window .timer { margin-top: 12px; height: 8px; background: #e6d9bf; position: relative; overflow: hidden; }
+    .window .timer::after { content: ""; position: absolute; inset: 0; width: 38%; background: var(--accent); }
+    section { padding: 56px 0; }
+    section h2 { font-size: 1.6rem; margin: 0 0 16px; }
+    .light { background: var(--ink-2); }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 24px; }
+    .card { background: var(--ink); border: 2px solid #3a3347; padding: 20px; }
+    .card h3 { margin: 0 0 8px; font-size: 1.1rem; color: var(--accent-2); }
+    .card p { margin: 0; }
+    footer { background: #0e0c13; padding: 32px 0; font-size: 0.9rem; }
+    footer ul { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="lines" aria-hidden="true">
+      <span style="top: 18%; left: -10%; width: 55%;"></span>
+      <span style="top: 46%; left: 40%; width: 70%;"></span>
+      <span style="top: 78%; left: -5%; width: 45%;"></span>
+    </div>
+    <div class="wrap">
+      <h1>fast-galge</h1>
+      <p class="lead">会話がすごい早さで進むギャルゲー。文字送りは<strong>止められない</strong>。選択肢は<strong>2 秒</strong>。それ以外は、普通にしっかりしている。</p>
+      <p class="status">ブラウザで無料・1 プレイ 5 分・開発中</p>
+      <div class="window" role="img" aria-label="メッセージウィンドウの例。ヒロインのセリフが表示され、下に残り時間のバーがある">
+        <p class="name">ヒロイン</p>
+        <p>「えっと、つまり、その、好きってことで、じゃあ返事は——」</p>
+        <div class="timer"></div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="light">
+      <div class="wrap">
+        <h2>速いこと以外は、ちゃんとギャルゲー</h2>
+        <p>立ち絵・背景・好感度・分岐・複数エンディング・バックログ・セーブ。普通のギャルゲーにあるものは揃えたうえで、会話だけが異常に速い。読み切れなかった会話はバックログで読み返せる (開いている間だけ時間が止まる)。</p>
+        <div class="cards">
+          <div class="card">
+            <h3>文字送りは止められない</h3>
+            <p>1 メッセージは 1 秒足らずで次へ進む。クリックで早送りも停止もできない。</p>
+          </div>
+          <div class="card">
+            <h3>選択肢は 2 秒</h3>
+            <p>決めないと「……」(無言) になり、ヒロインの好感度が下がる。</p>
+          </div>
+          <div class="card">
+            <h3>1 ルート 5 分</h3>
+            <p>エンディングを見るたびに別の選択を試したくなる長さ。クリア後は「ゆっくりモード」も。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="support">
+      <div class="wrap">
+        <h2>サポート・お問い合わせ</h2>
+        <p>不具合の報告やご質問は、メールでお送りください。</p>
+        <p><a href="mailto:bannzai.app@gmail.com">bannzai.app@gmail.com</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <ul>
+        <li><a href="./Terms-ja">利用規約</a></li>
+        <li><a href="./PrivacyPolicy-ja">プライバシーポリシー</a></li>
+      </ul>
+      <p>&copy; 2026 bannzai</p>
+    </div>
+  </footer>
+</body>
+</html>

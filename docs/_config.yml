@@ -1,0 +1,10 @@
+# GitHub Pages (Jekyll) の設定。利用規約・プライバシーポリシーの Markdown を HTML 化して
+# 拡張子なし URL (/Terms-ja) と .html の両方で配信するため .nojekyll は置かない
+title: fast-galge
+description: 会話がすごい早さで進むギャルゲー
+lang: ja
+# Web ビルドの配置先 (関門 3 の後に CD が置く)。Godot のエクスポート物は Jekyll に処理させずそのまま配信する
+include:
+  - play
+keep_files:
+  - play
