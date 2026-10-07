@@ -15,9 +15,9 @@ WINDOWED_FLAGS := --audio-driver Dummy --rendering-driver opengl3 --resolution 1
 # 描画付き起動でだけ出る、描画に影響しない OS / ドライバ由来の行。ログの WARNING / ERROR 検査から除外する
 # (llvmpipe は V-Sync を設定できない WARNING を毎回 1 件出す。macOS は入力メソッドの mach port のエラーを稀に出す)
 WINDOWED_LOG_NOISE := -e 'Could not set V-Sync mode' -e 'IMKCFRunLoopWakeUpReliable'
-# movie target が録画するフレーム数 (30 fps 固定。150 = 5 秒)。操作なしの起動〜タイトルの表示の確認には
-# 数秒あれば足り、CI の録画時間と artifact のサイズを抑えるため
-MOVIE_FRAMES ?= 150
+# movie target が録画するフレーム数 (30 fps 固定。300 = 10 秒)。タイトルを 1 秒映した後、本編の最初のメッセージが
+# 10 個前後、操作なしで流れるところまで映る長さ。CI の録画時間と artifact のサイズを抑えるためこれ以上は伸ばさない
+MOVIE_FRAMES ?= 300
 
 # 引数のログ (target の標準出力・標準エラーの保存先と、--log-file の Godot 自身のログ) がすべて存在して空でなく、
 # 全文に WARNING / ERROR の行が無いことを検査する。Godot は診断を記録しても exit 0 で終わることがあるため、exit code
@@ -54,7 +54,8 @@ check: import
 	tail -n 1 $(LOG_DIR)/check.log | grep -q '^exit=0$$'
 	$(call check_clean_log,$(LOG_DIR)/check.log $(LOG_DIR)/check.godot.log)
 
-# 画面の遷移表・全シーンのロード・全素材の assets/CREDITS.md への記録の検証 (headless)
+# 画面の遷移表・会話エンジンの計算・シナリオの形式と所要時間・全シーンのロード・全素材の assets/CREDITS.md への
+# 記録の検証 (headless)
 selfcheck: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --script res://scripts/dev/selfcheck.gd > $(LOG_DIR)/selfcheck.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/selfcheck.log; \
@@ -62,10 +63,11 @@ selfcheck: import
 	tail -n 1 $(LOG_DIR)/selfcheck.log | grep -q '^exit=0$$'
 	$(call check_clean_log,$(LOG_DIR)/selfcheck.log $(LOG_DIR)/selfcheck.godot.log)
 
-# キー入力でメインシーンを動かす入力統合テスト (headless)。タイトル → 会話中 → バックログ → 会話中の画面の遷移と、
-# 見出しの追従を確認する
+# キー入力とマウスのクリックでメインシーンを動かす入力統合テスト (headless)。会話の自動送り・選択・時間切れ・
+# バックログの開閉・エンディングへの到達と、表示の追従を確認する。--fixed-fps で会話の時間を実時間から切り離し、
+# 本編 2 周 (1 周 約 5 分) を待たずに流す
 integration: import
-	"$(GODOT)" --headless $(ENGINE_LOG) --path . --script res://scripts/dev/integration.gd > $(LOG_DIR)/integration.log 2>&1; \
+	"$(GODOT)" --headless $(ENGINE_LOG) --path . --fixed-fps 60 --script res://scripts/dev/integration.gd > $(LOG_DIR)/integration.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/integration.log; \
 	grep -q '^integration OK$$' $(LOG_DIR)/integration.log
 	tail -n 1 $(LOG_DIR)/integration.log | grep -q '^exit=0$$'
@@ -88,12 +90,13 @@ screenshot: import
 	$(call check_clean_log,$(LOG_DIR)/screenshot.log $(LOG_DIR)/screenshot.godot.log)
 	ls $(LOG_DIR)/screenshot-*.png
 
-# 操作を伴わない起動〜タイトル表示を Movie Maker モードで録画して mp4 にする (起動直後の描画崩れ・真っ黒を
-# 検出する。headless は dummy レンダラで落ちるため描画付きで起動する)。真っ黒な動画を成功と誤認しないよう、
-# 終了 1 秒前のフレームの輝度平均 (Y。limited range のため真っ黒 = 16) が 32 以上であることも検査する
+# 起動〜タイトル表示〜本編の文字送りを Movie Maker モードで録画して mp4 にする (起動直後の描画崩れ・真っ黒の検出と、
+# 文字送りの速さの目視のため。headless は dummy レンダラで落ちるため描画付きで起動する)。タイトルから本編を始める
+# 操作は scripts/dev/movie.gd が行う。真っ黒な動画を成功と誤認しないよう、終了 1 秒前のフレームの輝度平均
+# (Y。limited range のため真っ黒 = 16) が 32 以上であることも検査する
 movie: import
 	rm -f $(LOG_DIR)/movie.avi $(LOG_DIR)/movie.mp4
-	"$(GODOT)" $(ENGINE_LOG) --path . $(WINDOWED_FLAGS) --write-movie $(LOG_DIR)/movie.avi --fixed-fps 30 --quit-after $(MOVIE_FRAMES) > $(LOG_DIR)/movie.log 2>&1; \
+	"$(GODOT)" $(ENGINE_LOG) --path . $(WINDOWED_FLAGS) --write-movie $(LOG_DIR)/movie.avi --fixed-fps 30 --quit-after $(MOVIE_FRAMES) --script res://scripts/dev/movie.gd > $(LOG_DIR)/movie.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/movie.log; \
 	tail -n 1 $(LOG_DIR)/movie.log | grep -q '^exit=0$$'
 	$(call check_clean_log,$(LOG_DIR)/movie.log $(LOG_DIR)/movie.godot.log)
@@ -109,7 +112,9 @@ run: import
 
 # Web エクスポート (シングルスレッド)。プリセット名は export_presets.cfg と一致させる。
 # 実行には Godot 4.7 の Web 用 export template (web_nothreads_release.zip) が必要 (AGENTS.md「検証方法」参照)。
-# build/ に .gdignore を置き、エクスポート済みの画像を 2 回目以降の import で Godot に読ませない
+# build/ に .gdignore を置き、エクスポート済みの画像を 2 回目以降の import で Godot に読ませない。
+# シナリオの JSON はスクリプトから参照されないデータのため、pck に入っていること (export_presets.cfg の
+# include_filter) も確かめる (入っていないと headless の検証は通るのに、エクスポートしたゲームだけ会話が始まらない)
 build-web: import
 	@mkdir -p build/web
 	@touch build/.gdignore
@@ -120,6 +125,8 @@ build-web: import
 	test -f build/web/index.html
 	test -f build/web/index.wasm
 	test -f build/web/index.pck
+	grep -qa 'scenario/common.json' build/web/index.pck
+	grep -qa 'scenario/route_hina.json' build/web/index.pck
 
 clean:
 	rm -rf build $(LOG_DIR)

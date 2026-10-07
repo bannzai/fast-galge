@@ -1,10 +1,17 @@
 extends SceneTree
-## キー入力 (InputMap を通る InputEventKey) でメインシーンを動かす開発用スクリプト (scripts/dev/ の screenshot.gd と、
-## headless_check.gd を継承する selfcheck.gd・integration.gd) が共通で使う、キーの押し方・物理フレームの待ち方・
-## メインシーンの置き方。各スクリプトは _initialize() から自分の検証・撮影を始める。
+## キー入力とマウスのクリック (InputMap・GUI を通る入力イベント) でメインシーンを動かす開発用スクリプト (scripts/dev/ の
+## screenshot.gd・movie.gd と、headless_check.gd を継承する selfcheck.gd・integration.gd) が共通で使う、入力の送り方・
+## フレームの待ち方・会話の早送り・メインシーンの置き方。各スクリプトは _initialize() から自分の検証・撮影を始める。
 
 ## メインシーン
 const MAIN_SCENE: PackedScene = preload("res://scenes/main.tscn")
+## シナリオの保存形式のキー
+const ScenarioScript := preload("res://scripts/scenario.gd")
+## 選択肢を選ぶキー (並び順が選択肢の番号。project.godot の入力の choice_1〜choice_3)
+const CHOICE_KEYS: Array[Key] = [KEY_1, KEY_2, KEY_3]
+## 早送り (_fast_forward) で 1 回に進める時間 (秒)。メッセージの表示時間の下限と選択肢の制限時間より十分短くして、
+## 止まる条件を確かめる前に行を通り過ぎないようにする
+const FAST_FORWARD_STEP: float = 0.05
 ## 最後のメインシーンを消してから終了するまで待つ時間 (秒)。消したシーンが鳴らしていた音の再生は AudioServer が
 ## ミキシングを数回進めてから解放するため、headless (1 フレームがほぼ 0 秒で進む) で待たずに終了すると再生が
 ## リークとして WARNING / ERROR に出る (kageboshi の CI で実測)。ミキシング数回分に余裕を持たせた値
@@ -46,3 +53,33 @@ func _key_event(physical_keycode: Key, pressed: bool) -> InputEventKey:
 	event.keycode = physical_keycode
 	event.pressed = pressed
 	return event
+
+
+## control の中心をマウスの左ボタンで押して離す (タップの代わり。タッチはマウスの入力として届く)
+func _click(control: Control) -> void:
+	var point: Vector2 = root.get_final_transform() * control.get_global_rect().get_center()
+	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
+	motion.position = point
+	motion.global_position = point
+	Input.parse_input_event(motion)
+	await process_frame
+	for pressed: bool in [true, false]:
+		var event: InputEventMouseButton = InputEventMouseButton.new()
+		event.position = point
+		event.global_position = point
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.pressed = pressed
+		Input.parse_input_event(event)
+		await process_frame
+	await process_frame
+
+
+## game_state の会話が選択肢で止まっているか
+func _is_choosing(game_state: Node) -> bool:
+	return game_state.is_playing() and game_state.current_line().has(ScenarioScript.CHOICES)
+
+
+## game_state の会話を、until.call() が true になるかエンディングに着くまで、フレームを待たずに時間だけ進める
+func _fast_forward(game_state: Node, until: Callable) -> void:
+	while game_state.is_playing() and not until.call():
+		game_state.advance(FAST_FORWARD_STEP)

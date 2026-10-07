@@ -24,15 +24,16 @@
 | lint | `make lint` (`gdlint scripts/`) | exit 0 |
 | アセットインポート (初回・素材追加後) | `make import` | exit 0 (ログは `tmp/import.log`) |
 | 起動検証 (メインシーン・スクリプトのロード) | `make check` | exit 0 かつ `tmp/check.log` に `fast-galge boot` が出力され、WARNING / ERROR 行がない |
-| ロジック検証 (画面の遷移表、全シーンのロード、全素材が `assets/CREDITS.md` に記録されていること) | `make selfcheck` | exit 0 かつ `tmp/selfcheck.log` に `selfcheck OK` が出力され、WARNING / ERROR 行がない |
-| 入力統合テスト (キー入力でタイトル → 会話中 → バックログ → 会話中の遷移と見出しの追従) | `make integration` | exit 0 かつ `tmp/integration.log` に `integration OK` が出力され、WARNING / ERROR 行がない |
+| ロジック検証 (画面の遷移表、会話エンジンの計算 = 表示時間・時間切れ・好感度・分岐・所要時間、`scenario/` の全ファイルの形式、本編の所要時間と good / bad への到達、全シーンのロード、全素材が `assets/CREDITS.md` に記録されていること) | `make selfcheck` | exit 0 かつ `tmp/selfcheck.log` に `selfcheck OK` が出力され、WARNING / ERROR 行がない |
+| 入力統合テスト (キー入力とマウスのクリックで、サンプルシナリオの自動送り・選択・時間切れ・バックログの開閉・タップだけでの完走と、本編の good / bad への到達。`--fixed-fps 60` で会話の時間を実時間から切り離して流す) | `make integration` | exit 0 かつ `tmp/integration.log` に `integration OK` が出力され、WARNING / ERROR 行がない |
 | headless 検証の一括実行 (lint → check → selfcheck → integration) | `make test` (引数なしの `make` = `verify` も同じ) | exit 0 |
-| スクリーンショット (タイトル・会話中・バックログ。headless の検証では見た目の崩れを検出できない) | `make screenshot` | exit 0 かつ `tmp/screenshot-*.png` が生成される |
-| 起動の録画 (操作なしの起動〜タイトルの表示。起動直後の描画崩れ・真っ黒を検出する) | `make movie` | exit 0 かつ `tmp/movie.mp4` が生成され、末尾のフレームの輝度平均が基準以上 (ffmpeg が必要) |
+| スクリーンショット (タイトル・会話中・選択肢・バックログ・エンディング。headless の検証では見た目の崩れを検出できない) | `make screenshot` | exit 0 かつ `tmp/screenshot-*.png` が生成される |
+| 起動の録画 (起動〜タイトルの表示〜本編の文字送り。起動直後の描画崩れ・真っ黒の検出と、文字送りの速さの目視。タイトルから本編を始める操作は `scripts/dev/movie.gd`) | `make movie` | exit 0 かつ `tmp/movie.mp4` が生成され、末尾のフレームの輝度平均が基準以上 (ffmpeg が必要) |
 | ゲームをエディタなしで起動 (人が遊んで確かめる。アセットのインポートを含む) | `make run` | ウィンドウが開きタイトル画面が表示される |
 | Web エクスポート | `make build-web` | exit 0 で `build/web/` に `index.html` / `index.wasm` / `index.pck` が生成され、`tmp/build-web.log` に WARNING / ERROR 行がない |
 
 - 画面や状態を追加したら `scripts/dev/screenshot.gd` の `_capture_scenes()` に撮影を足し、入力で変わる振る舞いは `scripts/dev/integration.gd` に検証を足す。純粋な計算は `scripts/dev/selfcheck.gd` に検証を足す
+- 日本語の字形は同梱しておらず、既定フォントからシステムフォントへのフォールバックで描画する (フォントの選定と同梱は関門 2 のデザインの反映で行う)。CI の撮影は `fonts-noto-cjk` を入れて描画する。Web エクスポートはシステムフォントを使えないため、フォントを同梱するまで日本語が表示されない
 - Godot の起動にはすべて `--log-file` を付ける (Makefile の `ENGINE_LOG`)。付けないと Godot が `user://` にログを書こうとし、書き込みを拒否するサンドボックスでは起動に失敗する
 - ログは `tmp/*.log` に保存し、target の標準出力と `--log-file` の Godot 自身のログ (`tmp/<target>.godot.log`) の両方の全文を WARNING / ERROR 検査する (`tail` で切り詰めて判定しない。Makefile の `check_clean_log`)
 - Web エクスポートには Godot 4.7 の Web 用 export template (`web_nothreads_release.zip`) が要る。CI は `.github/actions/setup-godot` が tpz から必要なテンプレートだけを取り出してキャッシュする

@@ -82,11 +82,14 @@ jobs:
           # エディタバイナリで動かすため export templates は要らない (空なら tpz を取得しない)
           templates: ""
           cache_key_suffix: editor-only
+      # fonts-noto-cjk は日本語の描画用。ゲームは既定フォントを使い、日本語の字形はシステムフォントへの
+      # フォールバックで出すため、ランナーに日本語フォントが無いと撮影した会話文が豆腐 (□) になる
       - name: Start Xvfb with software GL
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb ffmpeg libgl1-mesa-dri \
-            libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxkbcommon0
+            libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxkbcommon0 \
+            fontconfig fonts-noto-cjk
           nohup Xvfb :99 -screen 0 1280x720x24 > "$RUNNER_TEMP/xvfb.log" 2>&1 &
           for _ in $(seq 1 30); do
             [ -S /tmp/.X11-unix/X99 ] && break
