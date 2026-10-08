@@ -9,6 +9,8 @@ extends "res://scripts/dev/game_driver.gd"
 const SETTLE_TIME: float = 0.3
 ## 結果の画像 (共有で保存する PNG) の保存先
 const RESULT_IMAGE_PATH: String = "tmp/screenshot-result.png"
+## 結果の画像が単色でないことを見る時に色を取る格子の分割数 (縦横)。帯・文字・背景のどれかに当たる細かさ
+const SAMPLE_GRID: int = 20
 
 
 ## tree の準備が終わってから _run() を始める (シーンの追加は _initialize() の後でないとできない)
@@ -57,7 +59,8 @@ func _capture_scenes() -> bool:
 
 
 ## エンディングの画面を撮影し、結果の画像を共有で保存するのと同じ処理 (メインシーンの save_result_image) で保存して、
-## 保存した PNG が結果の画像を描く SubViewport と同じ大きさであることを確かめる。失敗したら quit(1) する
+## 保存した PNG が結果の画像を描く SubViewport と同じ大きさで、単色 (描画されていない) でないことを確かめる。
+## 失敗したら quit(1) する
 func _capture_ending(main: Control) -> bool:
 	if not await _capture("tmp/screenshot-ending.png"):
 		return false
@@ -72,8 +75,23 @@ func _capture_ending(main: Control) -> bool:
 		push_error("結果の画像の大きさが %s ではない: %s" % [expected_size, RESULT_IMAGE_PATH])
 		quit(1)
 		return false
+	if _sampled_colors(saved).size() < 2:
+		push_error("結果の画像が単色で、描画されていない: %s" % RESULT_IMAGE_PATH)
+		quit(1)
+		return false
 	print("screenshot: " + RESULT_IMAGE_PATH)
 	return true
+
+
+## image を縦横 SAMPLE_GRID 分割した格子の点の色の集合 (単色かどうかの判定用)
+func _sampled_colors(image: Image) -> Dictionary:
+	var colors: Dictionary = {}
+	for row: int in range(SAMPLE_GRID):
+		for column: int in range(SAMPLE_GRID):
+			var x: int = floori(image.get_width() * column / float(SAMPLE_GRID))
+			var y: int = floori(image.get_height() * row / float(SAMPLE_GRID))
+			colors[image.get_pixel(x, y).to_html()] = true
+	return colors
 
 
 ## 選択肢で止まっている画面を撮影する。撮影は実時間で進むため、描画を待つ間に制限時間が切れていたら (撮れたのが

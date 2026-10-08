@@ -33,7 +33,7 @@ const IMAGE_FILE_NAME: String = "fast-galge-result.png"
 ## seconds (所要時間) を「分秒」の表記にする (秒は切り捨て)
 static func format_seconds(seconds: float) -> String:
 	var total: int = int(floorf(seconds))
-	return "%d分%02d秒" % [total / 60, total % 60]
+	return "%d分%02d秒" % [floori(total / 60.0), total % 60]
 
 
 ## result (ENDING_NAME・SECONDS・CHOICES・TIMEOUTS) を 1 行ずつにした、結果の画像に出す本文。

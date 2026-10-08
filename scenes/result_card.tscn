@@ -36,7 +36,7 @@ offset_right = 1140.0
 offset_bottom = 136.0
 theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
 theme_override_font_sizes/font_size = 44
-text = "fast-galge"
+text = "ゲーム名"
 vertical_alignment = 1
 
 [node name="Heading" type="Label" parent="."]
@@ -82,5 +82,5 @@ offset_right = 1140.0
 offset_bottom = 590.0
 theme_override_colors/font_color = Color(1, 0.55, 0.3, 1)
 theme_override_font_sizes/font_size = 30
-text = "#fastgalge  https://bannzai.github.io/fast-galge/"
+text = "ハッシュタグ  URL"
 vertical_alignment = 1

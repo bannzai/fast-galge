@@ -145,6 +145,16 @@ func _check_result(game_state: Node, main: Control, choices: int, timeouts: int)
 		),
 		"結果: 結果の画像に所要時間・選んだ選択肢の数・時間切れの回数が入る"
 	)
+	var card: Control = main.get_node("EndingScreen/ResultViewport/ResultCard")
+	_check(
+		(
+			card.get_node("GameName").text == ResultScript.GAME_NAME
+			and card.get_node("Footer").text == card.footer_text()
+			and card.get_node("Footer").text.contains(ResultScript.HASHTAG)
+			and card.get_node("Footer").text.contains(ResultScript.URL)
+		),
+		"結果: 結果の画像のゲーム名・ハッシュタグ・URL が文面と同じ定数から出る"
+	)
 	_check(
 		main.share_url() == ResultScript.share_url(ResultScript.share_text(result)),
 		"結果: 共有のボタンが開く URL が結果の文面から組み立てられる"
