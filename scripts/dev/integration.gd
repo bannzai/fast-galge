@@ -1,7 +1,7 @@
 extends "res://scripts/dev/headless_check.gd"
 ## キー入力とマウスのクリック (タップの代わり) でメインシーンを動かし、会話の自動送り・選択・時間切れ・バックログの開閉・
 ## エンディングへの到達と結果の記録 (結果の画像の本文と X の投稿画面の URL)、表示が会話の進行に追従することを
-## 検証する (headless)。共有のボタンは押さない
+## 検証する (headless)。共有のボタンは、X の投稿画面を開く関数を記録するものに差し替えてから押す
 ## (OS.shell_open が runner でブラウザを開こうとして ERROR を出すため)。Makefile が --fixed-fps 60 を付けて
 ## 起動し、会話の時間を実時間から切り離して 1 フレーム 1/60 秒で進める (本編を実時間で流すと 1 周に約 5 分かかるため)。
 ## 実行方法は AGENTS.md を参照。失敗したら quit(1) で終わる。
@@ -112,9 +112,54 @@ func _check_sample_with_keys(game_state: Node, main: Control) -> void:
 	)
 	_check(game_state.reached_endings == ["sample_good"], "到達したエンディングが記録される")
 	_check_result(game_state, main, 1, 0)
-	await _hold_keys([KEY_ENTER], 1)
-	_check(game_state.screen == GameStateScript.Screen.TITLE, "エンディングの Enter でタイトルに戻る")
+	await _check_share(game_state, main)
+	_check(
+		not main.get_node("EndingScreen/ResultImage").is_visible_in_tree(),
+		"結果: タイトルでは結果の画像が出ない"
+	)
 	_check(main.get_node("EndingScreen/ShareStatus").text.is_empty(), "画面が移ると共有の結果の表示は空")
+
+
+## 共有のボタンの流れ。X の投稿画面を開く関数とクリップボードに書く関数を記録するものに差し替え (runner でブラウザを
+## 開かないため)、ボタンのタップで結果の文面の URL を開き、デスクトップでは文面をコピーし、結果の表示が出て、
+## ボタンが押せる状態に戻ること。保存を待つ間にエンディングの画面を離れると投稿画面を開かず表示もしないこと。
+## 画像の保存は headless では行えない (ERR_UNAVAILABLE) ため、保存の失敗の表示が出る。最後はタイトルに戻る
+func _check_share(game_state: Node, main: Control) -> void:
+	var opened: Array[String] = []
+	var copied: Array[String] = []
+	main.url_opener = func(url: String) -> Error:
+		opened.append(url)
+		return OK
+	main.clipboard_writer = func(text: String) -> void: copied.append(text)
+	var share_button: Button = main.get_node("EndingScreen/ShareButton")
+	var status_label: Label = main.get_node("EndingScreen/ShareStatus")
+	var expected_url: String = main.share_url()
+	var expected_text: String = ResultScript.share_text(game_state.result())
+	await _click(share_button)
+	_check(opened == [expected_url], "共有: ボタンのタップで結果の文面の URL を開く (%s)" % [opened])
+	if OS.has_feature("pc"):
+		_check(copied == [expected_text], "共有: デスクトップでは文面をクリップボードに書く")
+		_check(status_label.text.contains(main.SHARE_COPIED_TEXT), "共有: コピーしたことを表示する")
+	else:
+		_check(copied.is_empty(), "共有: デスクトップ以外ではクリップボードに書かない")
+		_check(status_label.text.contains(main.SHARE_PHOTO_HINT_TEXT), "共有: 写真に残す方法を案内する")
+	_check(not share_button.disabled, "共有: 保存を待った後にボタンが押せる状態に戻る")
+	_check(status_label.text.contains(main.SHARE_OPENED_TEXT), "共有: 投稿画面を開いたことを表示する")
+	_check(
+		status_label.text.contains(main.SHARE_SAVE_FAILED_TEXT % error_string(ERR_UNAVAILABLE)),
+		"共有: headless では画像を保存できないことを表示する"
+	)
+	opened.clear()
+	main.call("_share")
+	_check(share_button.disabled, "共有: 保存を待つ間はボタンを押せない")
+	main.call("_apply", GameStateScript.Command.CONFIRM)
+	_check(game_state.screen == GameStateScript.Screen.TITLE, "エンディングの決定でタイトルに戻る")
+	await process_frame
+	await process_frame
+	_check(
+		opened.is_empty() and status_label.text.is_empty() and not share_button.disabled,
+		"共有: 待つ間にエンディングの画面を離れたら投稿画面を開かず表示もしない"
+	)
 
 
 ## エンディングの画面の結果 (game_state.result()) が、選んだ選択肢の数 choices・時間切れの回数 timeouts と、着いた
@@ -130,7 +175,10 @@ func _check_result(game_state: Node, main: Control, choices: int, timeouts: int)
 		),
 		"結果: エンディング名・所要時間・選んだ選択肢 %d・時間切れ %d が記録される (%s)" % [choices, timeouts, result]
 	)
-	_check(main.get_node("EndingScreen/ResultImage").visible, "結果: 結果の画像がエンディングの画面に出る")
+	_check(
+		main.get_node("EndingScreen/ResultImage").is_visible_in_tree(),
+		"結果: 結果の画像がエンディングの画面に出る"
+	)
 	_check(
 		(
 			main.get_node("EndingScreen/ResultViewport/ResultCard/EndingName").text

@@ -9,8 +9,12 @@ extends "res://scripts/dev/game_driver.gd"
 const SETTLE_TIME: float = 0.3
 ## 結果の画像 (共有で保存する PNG) の保存先
 const RESULT_IMAGE_PATH: String = "tmp/screenshot-result.png"
-## 結果の画像が単色でないことを見る時に色を取る格子の分割数 (縦横)。帯・文字・背景のどれかに当たる細かさ
-const SAMPLE_GRID: int = 20
+## 結果の画像で文字が描かれていることを確かめる Label (scenes/result_card.tscn のノード名) と、
+## その範囲で背景と違う色の画素が最低いくつあれば文字が描かれているとみなすか (1 文字で数百画素になる)
+const RESULT_TEXT_LABELS: Array[String] = ["EndingName", "Stats", "Footer"]
+const MIN_TEXT_PIXELS: int = 200
+## 背景と同じ色とみなす各成分の差の上限 (8 bit の量子化で 1/255 ずれるのを吸収する)
+const COLOR_TOLERANCE: float = 2.0 / 255.0
 
 
 ## tree の準備が終わってから _run() を始める (シーンの追加は _initialize() の後でないとできない)
@@ -59,8 +63,8 @@ func _capture_scenes() -> bool:
 
 
 ## エンディングの画面を撮影し、結果の画像を共有で保存するのと同じ処理 (メインシーンの save_result_image) で保存して、
-## 保存した PNG が結果の画像を描く SubViewport と同じ大きさで、単色 (描画されていない) でないことを確かめる。
-## 失敗したら quit(1) する
+## 保存した PNG が結果の画像を描く SubViewport と同じ大きさで、エンディング名・結果・ハッシュタグと URL の各 Label の
+## 範囲に文字が描かれている (背景と違う色の画素がある) ことを確かめる。失敗したら quit(1) する
 func _capture_ending(main: Control) -> bool:
 	if not await _capture("tmp/screenshot-ending.png"):
 		return false
@@ -75,23 +79,33 @@ func _capture_ending(main: Control) -> bool:
 		push_error("結果の画像の大きさが %s ではない: %s" % [expected_size, RESULT_IMAGE_PATH])
 		quit(1)
 		return false
-	if _sampled_colors(saved).size() < 2:
-		push_error("結果の画像が単色で、描画されていない: %s" % RESULT_IMAGE_PATH)
-		quit(1)
-		return false
+	var card: Control = main.get_node("EndingScreen/ResultViewport/ResultCard")
+	var background: Color = card.get_node("Background").color
+	for label_name: String in RESULT_TEXT_LABELS:
+		var drawn: int = _pixels_differing(saved, card.get_node(label_name).get_rect(), background)
+		if drawn < MIN_TEXT_PIXELS:
+			push_error("結果の画像の %s に文字が描かれていない (%d 画素): %s" % [label_name, drawn, RESULT_IMAGE_PATH])
+			quit(1)
+			return false
 	print("screenshot: " + RESULT_IMAGE_PATH)
 	return true
 
 
-## image を縦横 SAMPLE_GRID 分割した格子の点の色の集合 (単色かどうかの判定用)
-func _sampled_colors(image: Image) -> Dictionary:
-	var colors: Dictionary = {}
-	for row: int in range(SAMPLE_GRID):
-		for column: int in range(SAMPLE_GRID):
-			var x: int = floori(image.get_width() * column / float(SAMPLE_GRID))
-			var y: int = floori(image.get_height() * row / float(SAMPLE_GRID))
-			colors[image.get_pixel(x, y).to_html()] = true
-	return colors
+## image の rect の範囲で、background と違う色の画素の数 (文字が描かれているかの判定用)。PNG は 8 bit に量子化されて
+## いるため、各成分の差が COLOR_TOLERANCE 以下なら同じ色とみなす
+func _pixels_differing(image: Image, rect: Rect2, background: Color) -> int:
+	var count: int = 0
+	var area: Rect2i = Rect2i(rect).intersection(Rect2i(Vector2i.ZERO, image.get_size()))
+	for y: int in range(area.position.y, area.end.y):
+		for x: int in range(area.position.x, area.end.x):
+			var pixel: Color = image.get_pixel(x, y)
+			if (
+				absf(pixel.r - background.r) > COLOR_TOLERANCE
+				or absf(pixel.g - background.g) > COLOR_TOLERANCE
+				or absf(pixel.b - background.b) > COLOR_TOLERANCE
+			):
+				count += 1
+	return count
 
 
 ## 選択肢で止まっている画面を撮影する。撮影は実時間で進むため、描画を待つ間に制限時間が切れていたら (撮れたのが

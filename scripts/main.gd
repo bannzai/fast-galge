@@ -25,6 +25,8 @@ const SHARE_OPEN_FAILED_TEXT: String = "X の投稿画面を開けませんで�
 const APP_STORAGE_NAME: String = "アプリの保存領域"
 ## アプリの保存領域に置く結果の画像のパス (iOS・Web と、デスクトップでピクチャフォルダに書けない時)
 const USER_IMAGE_PATH: String = "user://" + ResultScript.IMAGE_FILE_NAME
+## 描画しない起動 (--headless) の DisplayServer の名前。結果の画像の保存は描画の完了を待てないため省く
+const HEADLESS_DISPLAY_SERVER: String = "headless"
 ## 入力のアクションと、GameState に送る操作
 const SCREEN_ACTIONS: Dictionary = {
 	"confirm": GameStateScript.Command.CONFIRM,
@@ -35,6 +37,11 @@ const CHOICE_ACTIONS: Array[String] = ["choice_1", "choice_2", "choice_3"]
 
 ## 起動検証 (make check) が確認する起動の印
 const BOOT_MESSAGE: String = "fast-galge boot"
+
+## 共有で X の投稿画面の URL を開く関数と、文面をクリップボードに書く関数。既定は OS と DisplayServer のもので、
+## 入力統合テスト (scripts/dev/integration.gd) が、runner でブラウザを開かずに共有の流れを通すために差し替える
+var url_opener: Callable = Callable(OS, "shell_open")
+var clipboard_writer: Callable = Callable(DisplayServer, "clipboard_set")
 
 ## タイトルの画面と、会話を始めるボタン
 @onready var title_screen: Control = $TitleScreen
@@ -163,9 +170,12 @@ func share_url() -> String:
 
 
 ## 結果の画像 (SubViewport の描画) を path に PNG で保存する。描画が反映されるまで 1 フレームと描画の完了を待つ。
-## headless (描画なし) では画像が空のため ERR_UNAVAILABLE。同じ path には同じ画像を上書きするため冪等
+## headless (描画なし) では描画の完了が来ないため、1 フレーム待った後に ERR_UNAVAILABLE を返す。
+## 同じ path には同じ画像を上書きするため冪等
 func save_result_image(path: String) -> Error:
 	await get_tree().process_frame
+	if DisplayServer.get_name() == HEADLESS_DISPLAY_SERVER:
+		return ERR_UNAVAILABLE
 	await RenderingServer.frame_post_draw
 	var image: Image = result_viewport.get_texture().get_image()
 	if image == null or image.is_empty():
@@ -174,9 +184,9 @@ func save_result_image(path: String) -> Error:
 
 
 ## 共有のボタンの操作。結果の画像を保存し (デスクトップはピクチャフォルダ。書けない時は user://)、デスクトップでは
-## 文面をクリップボードにコピーし、X の投稿画面を開く。結果を共有の操作の結果の表示に出す。保存を待つ間はボタンを
-## 押せなくし、待つ間にエンディングの画面を離れたら投稿画面を開かず表示もしない。
-## 保存先・投稿画面の表示・クリップボードを書き換えるため冪等ではない
+## 文面をクリップボードにコピーし、X の投稿画面を開く。保存とコピーの結果は投稿画面を開く前に表示に出す
+## (iOS は X に切り替わるため、戻る前に読めるように)。保存を待つ間はボタンを押せなくし、待つ間にエンディングの画面を
+## 離れたら投稿画面を開かず表示もしない。保存先・投稿画面の表示・クリップボードを書き換えるため冪等ではない
 func _share() -> void:
 	var game_state: Node = _game_state()
 	if game_state == null or share_button.disabled:
@@ -196,22 +206,17 @@ func _share() -> void:
 	if saved == OK:
 		messages.append(
 			SHARE_SAVED_TEXT
-			% [
-				(
-					APP_STORAGE_NAME
-					if image_path == USER_IMAGE_PATH
-					else ProjectSettings.globalize_path(image_path)
-				)
-			]
+			% [ProjectSettings.globalize_path(image_path) if on_desktop else APP_STORAGE_NAME]
 		)
 	else:
 		messages.append(SHARE_SAVE_FAILED_TEXT % error_string(saved))
 	if on_desktop:
-		DisplayServer.clipboard_set(text)
+		clipboard_writer.call(text)
 		messages.append(SHARE_COPIED_TEXT)
 	else:
 		messages.append(SHARE_PHOTO_HINT_TEXT)
-	var opened: Error = OS.shell_open(ResultScript.share_url(text))
+	share_status_label.text = "\n".join(messages)
+	var opened: Error = url_opener.call(ResultScript.share_url(text))
 	if opened == OK:
 		messages.append(SHARE_OPENED_TEXT)
 	else:
