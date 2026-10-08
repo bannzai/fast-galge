@@ -1,6 +1,7 @@
 extends Node
 ## ゲーム進行の状態 (autoload の GameState)。いま表示している画面 (タイトル・会話中・バックログ・エンディング)、
-## 会話の進行 (シナリオの位置・経過時間・好感度・バックログ)、到達したエンディングを持つ。
+## 会話の進行 (シナリオの位置・経過時間・好感度・バックログ)、到達したエンディング、結果画面の値 (所要時間・選んだ選択肢の数・
+## 時間切れの回数) を持つ。
 ## 画面をまたいで参照する値はここに集める (UI ノードに状態を持たせない)。会話のルールの計算は scripts/conversation.gd。
 
 ## 表示している画面。会話が進むのは PLAYING の間だけで、BACKLOG を開いている間は止まる
@@ -12,6 +13,8 @@ enum Command { CONFIRM, BACKLOG }
 const ScenarioScript := preload("res://scripts/scenario.gd")
 ## 会話のルールの値と計算
 const ConversationScript := preload("res://scripts/conversation.gd")
+## 結果 (エンディングに着いた時の値) のキー
+const ResultScript := preload("res://scripts/result.gd")
 ## 画面ごとに受け付ける操作と、その操作で移る画面。ここに無い操作はその画面では何もしない。
 ## ENDING へは操作ではなく、会話がエンディングの行に着くことで移る
 const TRANSITIONS: Dictionary = {
@@ -42,6 +45,11 @@ var affection: Dictionary = {}
 var backlog: Array[Dictionary] = []
 ## 到達したエンディングの ID (到達した順。重複なし)
 var reached_endings: Array[String] = []
+## 今回の会話で進めた時間の合計 (秒)。結果画面の所要時間
+var play_seconds: float = 0.0
+## 今回の会話で制限時間内に選んだ選択肢の数と、時間切れの回数
+var choice_count: int = 0
+var timeout_count: int = 0
 
 
 ## current の画面で command を受けた時に移る画面。受け付けない操作なら current のまま。
@@ -80,6 +88,7 @@ func advance(delta: float) -> void:
 	if not is_playing():
 		return
 	elapsed += delta
+	play_seconds += delta
 	while is_playing() and elapsed >= ConversationScript.stop_seconds(current_line()):
 		elapsed -= ConversationScript.stop_seconds(current_line())
 		if current_line().has(ScenarioScript.CHOICES):
@@ -99,12 +108,25 @@ func choose(option_index: int) -> bool:
 	return true
 
 
-## scenario_paths のシナリオを読み、会話の進行を初期値に戻して最初の行から会話中にする
+## エンディングの画面に出す結果 (エンディング名・所要時間・選んだ選択肢の数・時間切れの回数。キーは scripts/result.gd)
+func result() -> Dictionary:
+	return {
+		ResultScript.ENDING_NAME: current_line().get(ScenarioScript.NAME, ""),
+		ResultScript.SECONDS: play_seconds,
+		ResultScript.CHOICES: choice_count,
+		ResultScript.TIMEOUTS: timeout_count,
+	}
+
+
+## scenario_paths のシナリオを読み、会話の進行と結果を初期値に戻して最初の行から会話中にする
 func _start() -> void:
 	lines = ScenarioScript.load_lines(scenario_paths)
 	affection = {}
 	backlog = []
 	elapsed = 0.0
+	play_seconds = 0.0
+	choice_count = 0
+	timeout_count = 0
 	screen = Screen.PLAYING
 	_enter(0)
 
@@ -119,11 +141,15 @@ func _enter(from: int) -> void:
 		_finish()
 
 
-## いまの選択肢の行で pick 番目 (ConversationScript.TIMEOUT なら時間切れ) を選び、好感度とバックログに積んで
-## 分岐先へ進む
+## いまの選択肢の行で pick 番目 (ConversationScript.TIMEOUT なら時間切れ) を選び、結果の回数・好感度・バックログに
+## 積んで分岐先へ進む
 func _pick(pick: int) -> void:
 	var choice: Dictionary = current_line()
 	var option: Dictionary = ConversationScript.picked_option(choice, pick)
+	if pick == ConversationScript.TIMEOUT:
+		timeout_count += 1
+	else:
+		choice_count += 1
 	affection = ConversationScript.affection_after(
 		affection, option.get(ScenarioScript.AFFECTION, {})
 	)

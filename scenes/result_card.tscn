@@ -1,0 +1,86 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/result_card.gd" id="1_result_card"]
+
+[node name="ResultCard" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_result_card")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.09, 0.08, 0.13, 1)
+
+[node name="Accent" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 40.0
+offset_right = 1160.0
+offset_bottom = 54.0
+color = Color(1, 0.55, 0.3, 1)
+
+[node name="GameName" type="Label" parent="."]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 76.0
+offset_right = 1140.0
+offset_bottom = 136.0
+theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+theme_override_font_sizes/font_size = 44
+text = "fast-galge"
+vertical_alignment = 1
+
+[node name="Heading" type="Label" parent="."]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 160.0
+offset_right = 1140.0
+offset_bottom = 200.0
+theme_override_colors/font_color = Color(1, 0.55, 0.3, 1)
+theme_override_font_sizes/font_size = 30
+text = "ENDING"
+vertical_alignment = 1
+
+[node name="EndingName" type="Label" parent="."]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 204.0
+offset_right = 1140.0
+offset_bottom = 304.0
+theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+theme_override_font_sizes/font_size = 72
+text = "エンディング名"
+vertical_alignment = 1
+
+[node name="Stats" type="Label" parent="."]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 330.0
+offset_right = 1140.0
+offset_bottom = 520.0
+theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
+theme_override_font_sizes/font_size = 40
+text = "所要時間 0分00秒
+選んだ選択肢 0
+時間切れ 0"
+vertical_alignment = 1
+
+[node name="Footer" type="Label" parent="."]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 540.0
+offset_right = 1140.0
+offset_bottom = 590.0
+theme_override_colors/font_color = Color(1, 0.55, 0.3, 1)
+theme_override_font_sizes/font_size = 30
+text = "#fastgalge  https://bannzai.github.io/fast-galge/"
+vertical_alignment = 1
