@@ -1,11 +1,14 @@
 extends "res://scripts/dev/game_driver.gd"
 ## 実際の描画で代表画面を撮影する (headless では描画されないため、Makefile の screenshot target が --headless なしで
-## 起動する)。撮影した PNG は tmp/screenshot-<名前>.png に保存し、失敗したら quit(1) で終わる。
+## 起動する)。撮影した PNG は tmp/screenshot-<名前>.png に保存し、失敗したら quit(1) で終わる。結果の画像 (エンディングの
+## 画面が共有で保存する PNG) はメインシーンの保存の処理で tmp/screenshot-result.png に書く。
 ## 画面や状態を増やす時は _capture_scenes() だけを差し替える。
 
 ## 画面を出してから撮影するまで待つ時間 (秒)。起動直後の最初の描画と、バックログの一覧を末尾まで送るレイアウト
 ## (メインシーンが 2 フレーム待ってから送る) が済むのに十分な長さ
 const SETTLE_TIME: float = 0.3
+## 結果の画像 (共有で保存する PNG) の保存先
+const RESULT_IMAGE_PATH: String = "tmp/screenshot-result.png"
 
 
 ## tree の準備が終わってから _run() を始める (シーンの追加は _initialize() の後でないとできない)
@@ -46,10 +49,24 @@ func _capture_scenes() -> bool:
 	while game_state.is_playing():
 		_fast_forward(game_state, _is_choosing.bind(game_state))
 		game_state.choose(0)
-	if not await _capture("tmp/screenshot-ending.png"):
+	if not await _capture_ending(main):
 		return false
 	main.queue_free()
 	await process_frame
+	return true
+
+
+## エンディングの画面を撮影し、結果の画像を共有で保存するのと同じ処理 (メインシーンの save_result_image) で保存する。
+## 失敗したら quit(1) する
+func _capture_ending(main: Control) -> bool:
+	if not await _capture("tmp/screenshot-ending.png"):
+		return false
+	var status: Error = await main.save_result_image(RESULT_IMAGE_PATH)
+	if status != OK:
+		push_error("結果の画像の保存失敗: %s (%s)" % [RESULT_IMAGE_PATH, error_string(status)])
+		quit(1)
+		return false
+	print("screenshot: " + RESULT_IMAGE_PATH)
 	return true
 
 

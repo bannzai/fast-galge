@@ -1,11 +1,18 @@
 extends "res://scripts/dev/headless_check.gd"
 ## キー入力とマウスのクリック (タップの代わり) でメインシーンを動かし、会話の自動送り・選択・時間切れ・バックログの開閉・
-## エンディングへの到達と、表示が会話の進行に追従することを検証する (headless)。Makefile が --fixed-fps 60 を付けて
+## エンディングへの到達と結果の記録 (結果の画像の本文と X の投稿画面の URL)、表示が会話の進行に追従することを
+## 検証する (headless)。共有のボタンは押さない
+## (OS.shell_open が runner でブラウザを開こうとして ERROR を出すため)。Makefile が --fixed-fps 60 を付けて
 ## 起動し、会話の時間を実時間から切り離して 1 フレーム 1/60 秒で進める (本編を実時間で流すと 1 周に約 5 分かかるため)。
 ## 実行方法は AGENTS.md を参照。失敗したら quit(1) で終わる。
 
 ## 画面 (Screen) の定義と本編のシナリオを持つ autoload の GameState のスクリプト
 const GameStateScript := preload("res://scripts/game_state.gd")
+## 結果のキーと、文面・URL の組み立て
+const ResultScript := preload("res://scripts/result.gd")
+## 本編の所要時間の実測が見積もりより短くなる分の上限 (秒)。見積もりは選択肢ごとに制限時間いっぱい止まる前提のため、
+## キーで即座に選ぶ実測は選択肢 1 つにつき制限時間の分だけ短くなる。長くなる側の許容は 1 フレーム分に余裕を持たせた 1 秒
+const MAIN_SECONDS_TOLERANCE: float = 1.0
 ## 会話が進むのを待つ上限のフレーム数 (60 fps で 10 分)。本編 1 周の所要時間の上限 7 分より長くして、
 ## 会話が終わらない不具合の時だけ待ちを打ち切る
 const WAIT_FRAME_LIMIT: int = 36000
@@ -43,8 +50,8 @@ func _run_scenes(game_state: Node) -> void:
 	await _check_sample_timeout(game_state, main)
 	await _check_sample_with_taps(game_state, main)
 	game_state.scenario_paths = GameStateScript.MAIN_SCENARIO_PATHS
-	await _check_main_ending(game_state, 1, "hina_good")
-	await _check_main_ending(game_state, -1, "hina_bad")
+	await _check_main_ending(game_state, main, 1, "hina_good")
+	await _check_main_ending(game_state, main, -1, "hina_bad")
 	main.queue_free()
 	await process_frame
 	await create_timer(AUDIO_RELEASE_TIME).timeout
@@ -104,8 +111,44 @@ func _check_sample_with_keys(game_state: Node, main: Control) -> void:
 		"エンディング名が表示される"
 	)
 	_check(game_state.reached_endings == ["sample_good"], "到達したエンディングが記録される")
+	_check_result(game_state, main, 1, 0)
 	await _hold_keys([KEY_ENTER], 1)
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "エンディングの Enter でタイトルに戻る")
+	_check(main.get_node("EndingScreen/ShareStatus").text.is_empty(), "画面が移ると共有の結果の表示は空")
+
+
+## エンディングの画面の結果 (game_state.result()) が、選んだ選択肢の数 choices・時間切れの回数 timeouts と、着いた
+## エンディング名・正の所要時間を持ち、結果の画像の本文と X の投稿画面の URL がその結果から組み立てられていること
+func _check_result(game_state: Node, main: Control, choices: int, timeouts: int) -> void:
+	var result: Dictionary = game_state.result()
+	_check(
+		(
+			result[ResultScript.ENDING_NAME] == game_state.current_line()["name"]
+			and result[ResultScript.SECONDS] > 0.0
+			and result[ResultScript.CHOICES] == choices
+			and result[ResultScript.TIMEOUTS] == timeouts
+		),
+		"結果: エンディング名・所要時間・選んだ選択肢 %d・時間切れ %d が記録される (%s)" % [choices, timeouts, result]
+	)
+	_check(main.get_node("EndingScreen/ResultImage").visible, "結果: 結果の画像がエンディングの画面に出る")
+	_check(
+		(
+			main.get_node("EndingScreen/ResultViewport/ResultCard/EndingName").text
+			== result[ResultScript.ENDING_NAME]
+		),
+		"結果: 結果の画像にエンディング名が入る"
+	)
+	_check(
+		(
+			main.get_node("EndingScreen/ResultViewport/ResultCard/Stats").text
+			== ResultScript.stats_text(result)
+		),
+		"結果: 結果の画像に所要時間・選んだ選択肢の数・時間切れの回数が入る"
+	)
+	_check(
+		main.share_url() == ResultScript.share_url(ResultScript.share_text(result)),
+		"結果: 共有のボタンが開く URL が結果の文面から組み立てられる"
+	)
 
 
 ## 会話中に B でバックログを開閉する。開いている間は会話が止まり、流れたメッセージが一覧に載り、閉じると続きから
@@ -157,6 +200,7 @@ func _check_sample_timeout(game_state: Node, main: Control) -> void:
 	)
 	await _wait_until(func() -> bool: return not game_state.is_playing())
 	_check(game_state.current_line().get("ending") == "sample_bad", "好感度が足りないと bad に着く")
+	_check_result(game_state, main, 0, 1)
 	await _hold_keys([KEY_ENTER], 1)
 
 
@@ -181,13 +225,15 @@ func _check_sample_with_taps(game_state: Node, main: Control) -> void:
 	_check(game_state.affection == {"hina": -1}, "タップした選択肢の好感度が足される")
 	await _wait_until(func() -> bool: return not game_state.is_playing())
 	_check(game_state.current_line().get("ending") == "sample_bad", "タップだけでエンディングに着く")
+	_check_result(game_state, main, 1, 0)
 	await _click(main.get_node("EndingScreen/TitleButton"))
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "タイトルへのボタンのタップでタイトルに戻る")
 
 
 ## 本編を最初から最後まで、選択肢ごとに好感度が最も上がる (direction = 1) / 下がる (direction = -1) ものをキーで選んで
-## 進め、expected のエンディングに着くこと
-func _check_main_ending(game_state: Node, direction: int, expected: String) -> void:
+## 進め、expected のエンディングに着くこと。結果に本編の全選択肢が選んだ数として記録され、所要時間が見積もりの範囲に
+## 収まること
+func _check_main_ending(game_state: Node, main: Control, direction: int, expected: String) -> void:
 	await _hold_keys([KEY_ENTER], 1)
 	var frames: int = 0
 	while game_state.is_playing() and frames < WAIT_FRAME_LIMIT:
@@ -219,6 +265,21 @@ func _check_main_ending(game_state: Node, direction: int, expected: String) -> v
 			func(entry: Dictionary) -> bool: return entry["text"] == ConversationScript.TIMEOUT_TEXT
 		),
 		"本編: 時間切れではなく、キーで選んで進んでいる"
+	)
+	var choices: int = game_state.lines.filter(
+		func(line: Dictionary) -> bool: return line.has(ScenarioScript.CHOICES)
+	).size()
+	_check_result(game_state, main, choices, 0)
+	var play_seconds: float = game_state.play_seconds
+	_check(
+		(
+			play_seconds >= estimated["seconds"] - choices * ConversationScript.CHOICE_SECONDS
+			and play_seconds <= estimated["seconds"] + MAIN_SECONDS_TOLERANCE
+		),
+		(
+			"本編: 結果の所要時間が見積もりの範囲に収まる (%.1f 秒 / 見積もり %.1f 秒)"
+			% [play_seconds, estimated["seconds"]]
+		)
 	)
 	await _hold_keys([KEY_ENTER], 1)
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "本編: エンディングからタイトルに戻る")
