@@ -47,6 +47,7 @@ func _ready() -> void:
 ## (ファイルは動かさず、次の save() が退避する)
 func load_from(at: String) -> void:
 	path = at
+	_recover_writing()
 	var data: Dictionary = default_data()
 	if FileAccess.file_exists(path):
 		data = parse(FileAccess.get_file_as_string(path))
@@ -156,6 +157,18 @@ static func parse(text: String) -> Dictionary:
 			if ending is String and not ending.is_empty() and not endings.has(ending):
 				endings.append(ending)
 	return data
+
+
+## 保存先が無く、書き出し途中のファイル (path + WRITING_SUFFIX) だけが残っている時、それが読めるなら保存先へ移して使う。
+## Windows の DirAccess.rename_absolute は移動先を消してから移すため、その間に落ちると保存先だけが消えて書き終えた
+## ファイルが残る。壊れた書きかけは動かさず (既定値で始め、次の保存で上書きされる)
+func _recover_writing() -> void:
+	var writing: String = path + WRITING_SUFFIX
+	if FileAccess.file_exists(path) or not FileAccess.file_exists(writing):
+		return
+	if parse(FileAccess.get_file_as_string(writing))[KEY_BROKEN]:
+		return
+	DirAccess.rename_absolute(writing, path)
 
 
 ## 保存データが無い時の値。broken は壊れていたか、chapter はオートセーブした章の ID (空なら無し)、affection は

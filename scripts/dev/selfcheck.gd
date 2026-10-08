@@ -602,7 +602,8 @@ func _check_save_file() -> void:
 	saver.record_chapter("route_hina_autumn", {"hina": 2})
 	saver.record_ending("hina_good")
 	saver.record_ending("hina_good")
-	_check(saver.reached_endings == ["hina_good"], "保存: 同じエンディングを 2 度記録しても 1 つ")
+	var endings: Array[String] = ["hina_good"]
+	_check(saver.reached_endings == endings, "保存: 同じエンディングを 2 度記録しても 1 つ")
 	var written: String = FileAccess.get_file_as_string(path)
 	_check(saver.save() == OK, "保存: もう一度保存できる")
 	_check(FileAccess.get_file_as_string(path) == written, "保存: 同じ内容なら同じファイルになる")
@@ -613,7 +614,7 @@ func _check_save_file() -> void:
 	_check(not loader.loaded_broken, "読み込み: 書き出した保存データは壊れていない")
 	_check(loader.chapter == "route_hina_autumn", "読み込み: 最後に記録した章の区切りを読み戻す")
 	_check(loader.affection == {"hina": 2}, "読み込み: 好感度を読み戻す")
-	_check(loader.reached_endings == ["hina_good"] and loader.is_cleared(), "読み込み: 到達したエンディングを読み戻す")
+	_check(loader.reached_endings == endings and loader.is_cleared(), "読み込み: 到達したエンディングを読み戻す")
 
 	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
 	file.store_string(BROKEN_SAVE_FILE_TEXT)
@@ -640,6 +641,31 @@ func _check_save_file() -> void:
 		not loader.loaded_broken and not loader.has_progress() and not loader.is_cleared(),
 		"壊れた保存データ: 保存し直した後の読み込みは既定値で壊れていない"
 	)
+
+	var writing_path: String = path + SAVE_DATA_SCRIPT.WRITING_SUFFIX
+	_remove_file(path)
+	var writing: FileAccess = FileAccess.open(writing_path, FileAccess.WRITE)
+	writing.store_string(SAVE_DATA_SCRIPT.serialize("route_hina_spring", {"hina": 1}, endings))
+	writing.close()
+	loader.load_from(path)
+	_check(
+		loader.chapter == "route_hina_spring" and loader.reached_endings == endings,
+		"書きかけの保存データ: 保存先が無く書き終えたファイルだけが残っていれば、それを読む"
+	)
+	_check(
+		FileAccess.file_exists(path) and not FileAccess.file_exists(writing_path),
+		"書きかけの保存データ: 読めた書きかけは保存先へ移す"
+	)
+	_remove_file(path)
+	writing = FileAccess.open(writing_path, FileAccess.WRITE)
+	writing.store_string(BROKEN_SAVE_FILE_TEXT)
+	writing.close()
+	loader.load_from(path)
+	_check(
+		not loader.loaded_broken and not loader.has_progress() and FileAccess.file_exists(writing_path),
+		"書きかけの保存データ: 壊れた書きかけは動かさず既定値で始める"
+	)
+	_remove_file(writing_path)
 	loader.free()
 	_remove_file(path)
 	_remove_file(broken_path)

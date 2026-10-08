@@ -28,6 +28,7 @@ func _isolate_save(name: String) -> Node:
 	var path: String = ProjectSettings.globalize_path("res://tmp/%s-save.json" % name)
 	_remove_file(path)
 	_remove_file(path + save_data.BROKEN_SUFFIX)
+	_remove_file(path + save_data.WRITING_SUFFIX)
 	save_data.load_from(path)
 	return save_data
 
