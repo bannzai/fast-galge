@@ -653,8 +653,12 @@ func _check_save_file() -> void:
 		"書きかけの保存データ: 保存先が無く書き終えたファイルだけが残っていれば、それを読む"
 	)
 	_check(
-		FileAccess.file_exists(path) and not FileAccess.file_exists(writing_path),
-		"書きかけの保存データ: 読めた書きかけは保存先へ移す"
+		not FileAccess.file_exists(path) and FileAccess.file_exists(writing_path),
+		"書きかけの保存データ: 読み込みでは書きかけを動かさない"
+	)
+	_check(
+		loader.save() == OK and FileAccess.file_exists(path) and not FileAccess.file_exists(writing_path),
+		"書きかけの保存データ: 次の保存で保存先へ書き直す"
 	)
 	_remove_file(path)
 	writing = FileAccess.open(writing_path, FileAccess.WRITE)

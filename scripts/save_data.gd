@@ -47,10 +47,10 @@ func _ready() -> void:
 ## (ファイルは動かさず、次の save() が退避する)
 func load_from(at: String) -> void:
 	path = at
-	_recover_writing()
 	var data: Dictionary = default_data()
-	if FileAccess.file_exists(path):
-		data = parse(FileAccess.get_file_as_string(path))
+	var source: String = _source_path()
+	if not source.is_empty():
+		data = parse(FileAccess.get_file_as_string(source))
 	loaded_broken = data[KEY_BROKEN]
 	chapter = data[KEY_CHAPTER]
 	affection = data[KEY_AFFECTION]
@@ -159,16 +159,17 @@ static func parse(text: String) -> Dictionary:
 	return data
 
 
-## 保存先が無く、書き出し途中のファイル (path + WRITING_SUFFIX) だけが残っている時、それが読めるなら保存先へ移して使う。
-## Windows の DirAccess.rename_absolute は移動先を消してから移すため、その間に落ちると保存先だけが消えて書き終えた
-## ファイルが残る。壊れた書きかけは動かさず (既定値で始め、次の保存で上書きされる)
-func _recover_writing() -> void:
+## 読み込む保存データのファイル。保存先があればそれ。無ければ、書き出し途中のファイル (path + WRITING_SUFFIX) が
+## 読める時だけそれ (Windows の DirAccess.rename_absolute は移動先を消してから移すため、その間に落ちると保存先だけが
+## 消えて書き終えたファイルが残る)。どちらも無ければ空。読み込みではファイルを動かさず、次の save() が保存先へ書き直す
+## (検証 (scripts/dev/) が保存先を変える前に走る autoload の読み込みで、プレイヤーのファイルを動かさないため)
+func _source_path() -> String:
+	if FileAccess.file_exists(path):
+		return path
 	var writing: String = path + WRITING_SUFFIX
-	if FileAccess.file_exists(path) or not FileAccess.file_exists(writing):
-		return
-	if parse(FileAccess.get_file_as_string(writing))[KEY_BROKEN]:
-		return
-	DirAccess.rename_absolute(writing, path)
+	if not FileAccess.file_exists(writing):
+		return ""
+	return "" if parse(FileAccess.get_file_as_string(writing))[KEY_BROKEN] else writing
 
 
 ## 保存データが無い時の値。broken は壊れていたか、chapter はオートセーブした章の ID (空なら無し)、affection は
