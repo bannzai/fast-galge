@@ -7,6 +7,8 @@ extends "res://scripts/dev/game_driver.gd"
 ## 画面を出してから撮影するまで待つ時間 (秒)。起動直後の最初の描画と、バックログの一覧を末尾まで送るレイアウト
 ## (メインシーンが 2 フレーム待ってから送る) が済むのに十分な長さ
 const SETTLE_TIME: float = 0.3
+## 結果の画像のファイル名 (共有の操作の保存先の照合に使う)
+const ResultScript := preload("res://scripts/result.gd")
 ## 結果の画像 (共有で保存する PNG) の保存先
 const RESULT_IMAGE_PATH: String = "tmp/screenshot-result.png"
 ## 結果の画像で文字が描かれていることを確かめる Label (scenes/result_card.tscn のノード名) と、
