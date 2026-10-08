@@ -421,7 +421,7 @@ func _check_main_progress(expected: Dictionary) -> void:
 ## オートセーブ・エンディングの記録・やり直した時の初期化・「つづきから」の再開。保存先は tmp/ の検証用のファイル
 func _check_game_state_conversation() -> void:
 	var path: String = ProjectSettings.globalize_path(SAVE_TEST_PATH)
-	_remove_file(path)
+	_remove_save_files(path)
 	var saver: Node = SAVE_DATA_SCRIPT.new()
 	saver.load_from(path)
 	var game_state: Node = GAME_STATE_SCRIPT.new()
@@ -536,7 +536,7 @@ func _check_game_state_conversation() -> void:
 	game_state.free()
 	saver.free()
 	loader.free()
-	_remove_file(path)
+	_remove_save_files(path)
 
 
 ## 保存データの文字列の解釈。壊れたデータ (JSON でない・形が違う・版が違う) と、一部の値だけがおかしいデータ
@@ -591,8 +591,7 @@ func _check_save_parse() -> void:
 func _check_save_file() -> void:
 	var path: String = ProjectSettings.globalize_path(SAVE_TEST_PATH)
 	var broken_path: String = path + SAVE_DATA_SCRIPT.BROKEN_SUFFIX
-	_remove_file(path)
-	_remove_file(broken_path)
+	_remove_save_files(path)
 	var saver: Node = SAVE_DATA_SCRIPT.new()
 	saver.load_from(path)
 	_check(not saver.loaded_broken, "保存: 保存データが無ければ壊れていない扱いで始める")
@@ -669,10 +668,16 @@ func _check_save_file() -> void:
 		not loader.loaded_broken and not loader.has_progress() and FileAccess.file_exists(writing_path),
 		"書きかけの保存データ: 壊れた書きかけは動かさず既定値で始める"
 	)
-	_remove_file(writing_path)
 	loader.free()
+	_remove_save_files(path)
+
+
+## path の保存データと、退避したファイル・書き出し途中のファイルを消す (前の実行が途中で止まっていても、保存データが
+## 無い状態から検証を始めるため)
+func _remove_save_files(path: String) -> void:
 	_remove_file(path)
-	_remove_file(broken_path)
+	_remove_file(path + SAVE_DATA_SCRIPT.BROKEN_SUFFIX)
+	_remove_file(path + SAVE_DATA_SCRIPT.WRITING_SUFFIX)
 
 
 ## 全シーンがロードできる

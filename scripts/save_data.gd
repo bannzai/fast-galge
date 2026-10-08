@@ -58,7 +58,8 @@ func load_from(at: String) -> void:
 
 
 ## 今の進行と記録を保存先へ書き出す。読み込んだ保存データが壊れていたら、先に path + BROKEN_SUFFIX へ退避する。
-## 書き出し途中のファイルは、書き終えたことを確かめてから保存先へ移す (書けなかった時は既存の保存データを残す)。
+## 書き出し途中のファイルは、閉じた後に読み戻して書いた文字列と一致することを確かめてから保存先へ移す
+## (FileAccess は close の失敗を返さず、get_error も flush の失敗を拾わないため。書けなかった時は既存の保存データを残す)。
 ## 書き出せたら壊れていた知らせを消す
 func save() -> Error:
 	if loaded_broken and FileAccess.file_exists(path):
@@ -72,10 +73,11 @@ func save() -> Error:
 		var open_error: Error = FileAccess.get_open_error()
 		push_error("保存データを書き出せない: %s (%s)" % [writing, error_string(open_error)])
 		return open_error
-	var stored: bool = file.store_string(serialize(chapter, affection, reached_endings))
+	var text: String = serialize(chapter, affection, reached_endings)
+	var stored: bool = file.store_string(text)
 	var write_error: Error = file.get_error()
 	file.close()
-	if not stored or write_error != OK:
+	if not stored or write_error != OK or FileAccess.get_file_as_string(writing) != text:
 		DirAccess.remove_absolute(writing)
 		push_error("保存データを書き終えられない: %s (%s)" % [writing, error_string(write_error)])
 		return write_error if write_error != OK else ERR_FILE_CANT_WRITE
@@ -98,19 +100,25 @@ func is_cleared() -> bool:
 
 
 ## 章の区切り chapter_id に着いた時点の好感度 current_affection をオートセーブする。
-## 前の保存は上書きする (途中の保存は最新の 1 つだけ持つ)
+## 前の保存は上書きする (途中の保存は最新の 1 つだけ持つ)。書き出せなかった時は前の値に戻す
+## (持つ値は保存先の中身と一致させ、保存されていない進行で「つづきから」を出さない)
 func record_chapter(chapter_id: String, current_affection: Dictionary) -> void:
+	var previous_chapter: String = chapter
+	var previous_affection: Dictionary = affection
 	chapter = chapter_id
 	affection = current_affection.duplicate()
-	save()
+	if save() != OK:
+		chapter = previous_chapter
+		affection = previous_affection
 
 
-## ending のエンディングに到達したことを記録して保存する。記録済みなら何もしない
+## ending のエンディングに到達したことを記録して保存する。記録済みなら何もしない。書き出せなかった時は記録を戻す
 func record_ending(ending: String) -> void:
 	if reached_endings.has(ending):
 		return
 	reached_endings.append(ending)
-	save()
+	if save() != OK:
+		reached_endings.erase(ending)
 
 
 ## 保存データの文字列。値の順序を固定し、同じ内容からは同じ文字列を作る
