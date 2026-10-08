@@ -56,14 +56,20 @@ func _capture_scenes() -> bool:
 	return true
 
 
-## エンディングの画面を撮影し、結果の画像を共有で保存するのと同じ処理 (メインシーンの save_result_image) で保存する。
-## 失敗したら quit(1) する
+## エンディングの画面を撮影し、結果の画像を共有で保存するのと同じ処理 (メインシーンの save_result_image) で保存して、
+## 保存した PNG が結果の画像を描く SubViewport と同じ大きさであることを確かめる。失敗したら quit(1) する
 func _capture_ending(main: Control) -> bool:
 	if not await _capture("tmp/screenshot-ending.png"):
 		return false
 	var status: Error = await main.save_result_image(RESULT_IMAGE_PATH)
 	if status != OK:
 		push_error("結果の画像の保存失敗: %s (%s)" % [RESULT_IMAGE_PATH, error_string(status)])
+		quit(1)
+		return false
+	var expected_size: Vector2i = main.get_node("EndingScreen/ResultViewport").size
+	var saved: Image = Image.load_from_file(RESULT_IMAGE_PATH)
+	if saved == null or saved.get_size() != expected_size:
+		push_error("結果の画像の大きさが %s ではない: %s" % [expected_size, RESULT_IMAGE_PATH])
 		quit(1)
 		return false
 	print("screenshot: " + RESULT_IMAGE_PATH)

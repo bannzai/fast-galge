@@ -23,6 +23,8 @@ const SHARE_OPENED_TEXT: String = "X の投稿画面を開きました"
 const SHARE_OPEN_FAILED_TEXT: String = "X の投稿画面を開けませんでした (%s)"
 ## デスクトップ以外で画像を保存する場所の表示名 (user:// の実体のパスは端末ごとに違い、ユーザーが開けないため)
 const APP_STORAGE_NAME: String = "アプリの保存領域"
+## アプリの保存領域に置く結果の画像のパス (iOS・Web と、デスクトップでピクチャフォルダに書けない時)
+const USER_IMAGE_PATH: String = "user://" + ResultScript.IMAGE_FILE_NAME
 ## 入力のアクションと、GameState に送る操作
 const SCREEN_ACTIONS: Dictionary = {
 	"confirm": GameStateScript.Command.CONFIRM,
@@ -171,29 +173,45 @@ func save_result_image(path: String) -> Error:
 	return image.save_png(path)
 
 
-## 共有のボタンの操作。結果の画像を保存し、デスクトップでは文面をクリップボードにコピーし、X の投稿画面を開く。
-## 結果を共有の操作の結果の表示に出す。保存先・投稿画面の表示・クリップボードを書き換えるため冪等ではない
+## 共有のボタンの操作。結果の画像を保存し (デスクトップはピクチャフォルダ。書けない時は user://)、デスクトップでは
+## 文面をクリップボードにコピーし、X の投稿画面を開く。結果を共有の操作の結果の表示に出す。保存を待つ間はボタンを
+## 押せなくし、待つ間にエンディングの画面を離れたら投稿画面を開かず表示もしない。
+## 保存先・投稿画面の表示・クリップボードを書き換えるため冪等ではない
 func _share() -> void:
 	var game_state: Node = _game_state()
-	if game_state == null:
+	if game_state == null or share_button.disabled:
 		return
+	share_button.disabled = true
+	var text: String = ResultScript.share_text(game_state.result())
 	var on_desktop: bool = OS.has_feature("pc")
-	var image_path: String = _result_image_path(on_desktop)
+	var image_path: String = _pictures_image_path() if on_desktop else USER_IMAGE_PATH
 	var saved: Error = await save_result_image(image_path)
+	if saved != OK and image_path != USER_IMAGE_PATH:
+		image_path = USER_IMAGE_PATH
+		saved = await save_result_image(image_path)
+	share_button.disabled = false
+	if game_state.screen != GameStateScript.Screen.ENDING:
+		return
 	var messages: PackedStringArray = []
 	if saved == OK:
 		messages.append(
 			SHARE_SAVED_TEXT
-			% [ProjectSettings.globalize_path(image_path) if on_desktop else APP_STORAGE_NAME]
+			% [
+				(
+					APP_STORAGE_NAME
+					if image_path == USER_IMAGE_PATH
+					else ProjectSettings.globalize_path(image_path)
+				)
+			]
 		)
 	else:
 		messages.append(SHARE_SAVE_FAILED_TEXT % error_string(saved))
 	if on_desktop:
-		DisplayServer.clipboard_set(ResultScript.share_text(game_state.result()))
+		DisplayServer.clipboard_set(text)
 		messages.append(SHARE_COPIED_TEXT)
 	else:
 		messages.append(SHARE_PHOTO_HINT_TEXT)
-	var opened: Error = OS.shell_open(share_url())
+	var opened: Error = OS.shell_open(ResultScript.share_url(text))
 	if opened == OK:
 		messages.append(SHARE_OPENED_TEXT)
 	else:
@@ -201,12 +219,11 @@ func _share() -> void:
 	share_status_label.text = "\n".join(messages)
 
 
-## 結果の画像を保存するパス。デスクトップ (on_desktop) はユーザーのピクチャフォルダ (取れない時は user://)、
-## それ以外は user://
-func _result_image_path(on_desktop: bool) -> String:
-	var pictures_dir: String = OS.get_system_dir(OS.SYSTEM_DIR_PICTURES) if on_desktop else ""
+## デスクトップで結果の画像を保存するパス (ユーザーのピクチャフォルダ)。フォルダが取れない時は user://
+func _pictures_image_path() -> String:
+	var pictures_dir: String = OS.get_system_dir(OS.SYSTEM_DIR_PICTURES)
 	if pictures_dir.is_empty():
-		return "user://" + ResultScript.IMAGE_FILE_NAME
+		return USER_IMAGE_PATH
 	return pictures_dir.path_join(ResultScript.IMAGE_FILE_NAME)
 
 
