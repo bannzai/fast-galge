@@ -235,30 +235,32 @@ stretch_mode = 5
 
 [node name="Name" type="Label" parent="EndingScreen"]
 layout_mode = 0
-offset_top = 384.0
+offset_top = 380.0
 offset_right = 1280.0
-offset_bottom = 444.0
+offset_bottom = 430.0
 theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
-theme_override_font_sizes/font_size = 40
+theme_override_font_sizes/font_size = 34
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Summary" type="Label" parent="EndingScreen"]
 layout_mode = 0
-offset_top = 446.0
-offset_right = 1280.0
-offset_bottom = 486.0
+offset_left = 80.0
+offset_top = 432.0
+offset_right = 1200.0
+offset_bottom = 500.0
 theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
-vertical_alignment = 1
+vertical_alignment = 0
+autowrap_mode = 3
 
 [node name="ShareButton" type="Button" parent="EndingScreen"]
 layout_mode = 0
 offset_left = 240.0
-offset_top = 500.0
+offset_top = 512.0
 offset_right = 620.0
-offset_bottom = 570.0
+offset_bottom = 576.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 28
 text = "X で共有"
@@ -266,9 +268,9 @@ text = "X で共有"
 [node name="TitleButton" type="Button" parent="EndingScreen"]
 layout_mode = 0
 offset_left = 660.0
-offset_top = 500.0
+offset_top = 512.0
 offset_right = 1040.0
-offset_bottom = 570.0
+offset_bottom = 576.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 28
 text = "タイトルへ [Enter]"
@@ -276,11 +278,11 @@ text = "タイトルへ [Enter]"
 [node name="ShareStatus" type="Label" parent="EndingScreen"]
 layout_mode = 0
 offset_left = 80.0
-offset_top = 584.0
+offset_top = 588.0
 offset_right = 1200.0
-offset_bottom = 680.0
+offset_bottom = 690.0
 theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
 vertical_alignment = 0
 autowrap_mode = 3
