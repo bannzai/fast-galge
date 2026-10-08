@@ -25,7 +25,7 @@
   {"text": "差し出された水筒を受け取る。麦茶だった。甘くない。"},
   {"speaker": "ユウ", "text": "ありがとう。"},
   {"speaker": "ナギ", "expression": "normal", "text": "ん。"},
-  {"text": "『ん』は、たぶん『どういたしまして』だ。この一か月で、僕は彼女の『ん』を三種類まで聞き分けられるようになった。"},
+  {"text": "『ん』は、たぶん『どういたしまして』だ。この一か月で、僕は彼女の『ん』と『うん』を三種類まで聞き分けられるようになった。"},
   {"speaker": "ナギ", "expression": "normal", "text": "ユウは。"},
   {"speaker": "ユウ", "text": "僕は？"},
   {"speaker": "ナギ", "expression": "normal", "text": "走らないの。"},
@@ -44,7 +44,7 @@
   },
   {"label": "nagi_spring_watched"},
   {"speaker": "ナギ", "expression": "normal", "text": "……そう。"},
-  {"text": "三文字の前に、間があった。彼女にしては、長い間だった。たぶん〇・五秒。"},
+  {"text": "二文字の前に、間があった。彼女にしては、長い間だった。たぶん〇・五秒。"},
   {"text": "麦茶を飲む彼女の耳が、すこしだけ赤かった。走った後だから、だと思う。"},
   {"goto": "nagi_spring_end"},
   {"label": "nagi_spring_lost"},
@@ -145,7 +145,7 @@
   {"speaker": "ナギ", "expression": "normal", "text": "負けた。"},
   {"speaker": "ユウ", "text": "見てた。"},
   {"speaker": "ナギ", "expression": "normal", "text": "……帰る。"},
-  {"text": "三文字。その後ろに、何かが続きそうで、続かなかった。"},
+  {"text": "二文字。その後ろに、何かが続きそうで、続かなかった。"},
   {"text": "『帰る』は、報告なのか、別れの挨拶なのか、それとも。"},
   {
     "speaker": "ユウ",
@@ -234,7 +234,7 @@
   {"text": "最後に踊った相手と結ばれる。創立以来の伝説だ。成功率は、やっぱり伝わっていない。"},
   {"text": "ナギが、火の向こうからまっすぐ歩いてきた。"},
   {"speaker": "ナギ", "expression": "normal", "text": "踊る？"},
-  {"text": "三文字。火の明かりで、彼女の顔は、いつもよりすこし赤く見えた。"},
+  {"text": "二文字。火の明かりで、彼女の顔は、いつもよりすこし赤く見えた。"},
   {
     "speaker": "ユウ",
     "choices": [
@@ -250,7 +250,7 @@
   {"speaker": "ナギ", "expression": "normal", "text": "下手。"},
   {"speaker": "ユウ", "text": "ごめん。"},
   {"speaker": "ナギ", "expression": "normal", "text": "……いい。"},
-  {"text": "二種類目の『いい』だった。たぶん、いちばんいい『いい』だった。"},
+  {"text": "たぶん、この一年でいちばんいい『いい』だった。"},
   {"goto": "nagi_autumn_end"},
   {"label": "nagi_autumn_watch"},
   {"speaker": "ナギ", "expression": "normal", "text": "そう。"},
@@ -266,7 +266,7 @@
   {"speaker": "ヒナ", "expression": "smile", "text": "見てたよ！放送部は全部見てる！感想を四百字で！はいどうぞ！"},
   {"speaker": "ナギ", "expression": "normal", "text": "ない。"},
   {"speaker": "ヒナ", "expression": "angry", "text": "二文字！？四百字って言ったのに！"},
-  {"speaker": "ナギ", "expression": "normal", "text": "三百九十八字、おまけ。"},
+  {"speaker": "ナギ", "expression": "normal", "text": "残りはおまけ。"},
   {"text": "ヒナが坂の上で固まった。ナギが冗談を言ったのを、この学校で初めて見た人が二人になった。"},
   {"text": "十一月。全校マラソン大会。十キロ。短距離の彼女にとっては、百メートルを百本ぶんだった。"},
   {"speaker": "ナギ", "expression": "normal", "text": "長い。"},
@@ -306,7 +306,7 @@
   {"speaker": "ナギ", "expression": "normal", "text": "……。"},
   {"text": "彼女は手帳を閉じて、胸に抱えて、それから、小さく言った。"},
   {"speaker": "ナギ", "expression": "normal", "text": "寒い。"},
-  {"text": "三文字。でも今日の『寒い』は、気温の話ではない気がした。"},
+  {"text": "二文字。でも今日の『寒い』は、気温の話ではない気がした。"},
   {
     "speaker": "ユウ",
     "choices": [
