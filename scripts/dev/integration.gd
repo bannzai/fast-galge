@@ -260,7 +260,8 @@ func _check_sample_resume(game_state: Node, main: Control, save_data: Node) -> v
 
 
 ## 本編を最初から最後まで、選択肢ごとに好感度が最も上がる (direction = 1) / 下がる (direction = -1) ものをキーで選んで
-## 進め、expected のエンディングに着くこと。章の区切りを 2 箇所以上通り、最後の章の区切りが保存されていること
+## 進め、expected のエンディングに着くこと。最後の章の区切りと、その時点の好感度が保存されていること
+## (章の区切りの数はシナリオの形式として selfcheck が数える)
 func _check_main_ending(
 	game_state: Node, direction: int, expected: String, save_data: Node
 ) -> void:
