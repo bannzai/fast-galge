@@ -132,7 +132,7 @@
   {"text": "昼休みの会話は、その三文字がすべてだった。"},
   {"goto": "common_split"},
   {"label": "common_lunch_silent"},
-  {"speaker": "ヒナ", "expression": "surprised", "text": "また無言！？二秒で決められないの！？"},
+  {"speaker": "ヒナ", "expression": "surprised", "text": "無言！？二秒で決められないの！？"},
   {"speaker": "ナギ", "expression": "normal", "text": "遅い。"},
   {"text": "ひとりは放送室へ、ひとりは屋上へ。僕は教室で、ひとりで弁当を開けた。"},
   {"label": "common_split"},
