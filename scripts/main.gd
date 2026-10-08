@@ -39,10 +39,13 @@ const SHARE_ACTION: String = "share"
 ## 起動検証 (make check) が確認する起動の印
 const BOOT_MESSAGE: String = "fast-galge boot"
 
-## 共有で X の投稿画面の URL を開く関数と、文面をクリップボードに書く関数。既定は OS と DisplayServer のもので、
-## 入力統合テスト (scripts/dev/integration.gd) が、runner でブラウザを開かずに共有の流れを通すために差し替える
+## 共有で X の投稿画面の URL を開く関数、文面をクリップボードに書く関数、デスクトップで画像を保存するフォルダを返す
+## 関数。既定は OS と DisplayServer のもので、検証 (scripts/dev/integration.gd・screenshot.gd) が、runner でブラウザを
+## 開かず・開発者のフォルダに書かずに共有の流れを通すために差し替える
 var url_opener: Callable = Callable(OS, "shell_open")
 var clipboard_writer: Callable = Callable(DisplayServer, "clipboard_set")
+var pictures_dir_provider: Callable = func() -> String:
+	return OS.get_system_dir(OS.SYSTEM_DIR_PICTURES)
 
 ## タイトルの画面と、会話を始めるボタン
 @onready var title_screen: Control = $TitleScreen
@@ -228,10 +231,16 @@ func _share() -> void:
 	share_status_label.text = "\n".join(messages)
 
 
-## デスクトップで結果の画像を保存するパス (ユーザーのピクチャフォルダ)。フォルダが取れない時は user://
+## デスクトップで結果の画像を保存するパス (pictures_dir_provider が返すユーザーのピクチャフォルダ)。フォルダが取れない時
+## (空、Linux で xdg-user-dir が失敗した時の "."、存在しないフォルダ) は user:// にして、書けないパスへの保存で
+## ERROR を出さない
 func _pictures_image_path() -> String:
-	var pictures_dir: String = OS.get_system_dir(OS.SYSTEM_DIR_PICTURES)
-	if pictures_dir.is_empty():
+	var pictures_dir: String = pictures_dir_provider.call()
+	if (
+		pictures_dir.is_empty()
+		or pictures_dir == "."
+		or not DirAccess.dir_exists_absolute(pictures_dir)
+	):
 		return USER_IMAGE_PATH
 	return pictures_dir.path_join(ResultScript.IMAGE_FILE_NAME)
 

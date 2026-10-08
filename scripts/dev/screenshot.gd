@@ -17,6 +17,8 @@ const MIN_TEXT_PIXELS: int = 200
 const COLOR_TOLERANCE: float = 2.0 / 255.0
 ## 共有の操作の保存を待つ上限のフレーム数 (描画の完了を 2 回待つ数フレームに十分な余裕)
 const SHARE_WAIT_FRAME_LIMIT: int = 300
+## 共有の操作の検証で画像を保存するフォルダ (開発者のピクチャフォルダに書かないよう、ログと同じ tmp/ に向ける)
+const SHARE_SAVE_DIR: String = "res://tmp"
 
 
 ## tree の準備が終わってから _run() を始める (シーンの追加は _initialize() の後でないとできない)
@@ -64,15 +66,17 @@ func _capture_scenes() -> bool:
 	return true
 
 
-## 描画付きの起動で共有のボタンの操作 (_share) を通し、画像の保存が成功して保存先の表示が出ることを確かめる
-## (headless の integration では保存が失敗する経路しか通らないため)。X の投稿画面を開く関数とクリップボードに書く
-## 関数は記録するものに差し替える (runner でブラウザを開かないため)。失敗したら quit(1) する
+## 描画付きの起動で共有のボタンの操作 (_share) を通し、画像が保存先 (ピクチャフォルダの代わりに tmp/) に保存されて
+## 保存先の表示が出ることを確かめる (headless の integration では保存が失敗する経路しか通らないため)。X の投稿画面を
+## 開く関数とクリップボードに書く関数は記録するものに差し替える (runner でブラウザを開かないため)。失敗したら quit(1) する
 func _check_share_saves(main: Control) -> bool:
 	var opened: Array[String] = []
 	main.url_opener = func(url: String) -> Error:
 		opened.append(url)
 		return OK
 	main.clipboard_writer = func(_text: String) -> void: pass
+	var save_dir: String = ProjectSettings.globalize_path(SHARE_SAVE_DIR)
+	main.pictures_dir_provider = func() -> String: return save_dir
 	var share_button: Button = main.get_node("EndingScreen/ShareButton")
 	main.call("_share")
 	var frames: int = 0
@@ -80,11 +84,17 @@ func _check_share_saves(main: Control) -> bool:
 		await process_frame
 		frames += 1
 	var status: String = main.get_node("EndingScreen/ShareStatus").text
-	if opened.size() != 1 or not status.begins_with(main.SHARE_SAVED_TEXT % ""):
+	var expected_path: String = save_dir.path_join(ResultScript.IMAGE_FILE_NAME)
+	var expected_line: String = main.SHARE_SAVED_TEXT % expected_path
+	if (
+		opened.size() != 1
+		or status.split("\n")[0] != expected_line
+		or not FileAccess.file_exists(expected_path)
+	):
 		push_error("共有の操作で画像の保存と投稿画面の URL が揃わない: %s / %s" % [opened, status])
 		quit(1)
 		return false
-	print("share: " + status.split("\n")[0])
+	print("share: " + expected_line)
 	return true
 
 
