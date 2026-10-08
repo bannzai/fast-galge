@@ -16,13 +16,12 @@ const ResultScript := preload("res://scripts/result.gd")
 ## 共有の操作の結果を知らせる文。デスクトップは画像の保存先と文面のコピー、それ以外 (iOS・Web) は画像がアプリの
 ## 保存領域にあることと写真に残す方法を案内する (プラグインなしの共有シートは無く、写真への保存は別 issue)
 const SHARE_SAVED_TEXT: String = "画像を保存しました: %s"
+const SHARE_SAVED_IN_APP_TEXT: String = "画像をアプリの保存領域に保存しました (この版では直接は取り出せません)"
 const SHARE_SAVE_FAILED_TEXT: String = "画像を保存できませんでした (%s)"
 const SHARE_COPIED_TEXT: String = "文面をコピーしました"
 const SHARE_PHOTO_HINT_TEXT: String = "写真に残すには この画面のスクリーンショットを撮ってください"
 const SHARE_OPENED_TEXT: String = "X の投稿画面を開きました"
 const SHARE_OPEN_FAILED_TEXT: String = "X の投稿画面を開けませんでした (%s)"
-## デスクトップ以外で画像を保存する場所の表示名 (user:// の実体のパスは端末ごとに違い、ユーザーが開けないため)
-const APP_STORAGE_NAME: String = "アプリの保存領域"
 ## アプリの保存領域に置く結果の画像のパス (iOS・Web と、デスクトップでピクチャフォルダに書けない時)
 const USER_IMAGE_PATH: String = "user://" + ResultScript.IMAGE_FILE_NAME
 ## 描画しない起動 (--headless) の DisplayServer の名前。結果の画像の保存は描画の完了を待てないため省く
@@ -34,6 +33,8 @@ const SCREEN_ACTIONS: Dictionary = {
 }
 ## 選択肢を選ぶ入力のアクション (並び順が選択肢の番号)
 const CHOICE_ACTIONS: Array[String] = ["choice_1", "choice_2", "choice_3"]
+## エンディングの画面で共有する入力のアクション (キーボードでも共有できるように。project.godot の入力の share)
+const SHARE_ACTION: String = "share"
 
 ## 起動検証 (make check) が確認する起動の印
 const BOOT_MESSAGE: String = "fast-galge boot"
@@ -104,13 +105,17 @@ func _process(delta: float) -> void:
 	_refresh()
 
 
-## 入力のアクションを GameState の操作に写す
+## 入力のアクションを GameState の操作に写す。共有のアクションはエンディングの画面でだけ共有のボタンと同じ操作をする
 func _unhandled_input(event: InputEvent) -> void:
 	for action: String in SCREEN_ACTIONS:
 		if event.is_action_pressed(action):
 			_apply(SCREEN_ACTIONS[action])
 			get_viewport().set_input_as_handled()
 			return
+	if event.is_action_pressed(SHARE_ACTION) and ending_screen.visible:
+		_share()
+		get_viewport().set_input_as_handled()
+		return
 	for option_index: int in range(CHOICE_ACTIONS.size()):
 		if event.is_action_pressed(CHOICE_ACTIONS[option_index]):
 			_choose(option_index)
@@ -203,11 +208,10 @@ func _share() -> void:
 	if game_state.screen != GameStateScript.Screen.ENDING:
 		return
 	var messages: PackedStringArray = []
-	if saved == OK:
-		messages.append(
-			SHARE_SAVED_TEXT
-			% [ProjectSettings.globalize_path(image_path) if on_desktop else APP_STORAGE_NAME]
-		)
+	if saved == OK and on_desktop:
+		messages.append(SHARE_SAVED_TEXT % ProjectSettings.globalize_path(image_path))
+	elif saved == OK:
+		messages.append(SHARE_SAVED_IN_APP_TEXT)
 	else:
 		messages.append(SHARE_SAVE_FAILED_TEXT % error_string(saved))
 	if on_desktop:

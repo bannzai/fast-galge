@@ -15,6 +15,8 @@ const RESULT_TEXT_LABELS: Array[String] = ["EndingName", "Stats", "Footer"]
 const MIN_TEXT_PIXELS: int = 200
 ## 背景と同じ色とみなす各成分の差の上限 (8 bit の量子化で 1/255 ずれるのを吸収する)
 const COLOR_TOLERANCE: float = 2.0 / 255.0
+## 共有の操作の保存を待つ上限のフレーム数 (描画の完了を 2 回待つ数フレームに十分な余裕)
+const SHARE_WAIT_FRAME_LIMIT: int = 300
 
 
 ## tree の準備が終わってから _run() を始める (シーンの追加は _initialize() の後でないとできない)
@@ -62,9 +64,33 @@ func _capture_scenes() -> bool:
 	return true
 
 
+## 描画付きの起動で共有のボタンの操作 (_share) を通し、画像の保存が成功して保存先の表示が出ることを確かめる
+## (headless の integration では保存が失敗する経路しか通らないため)。X の投稿画面を開く関数とクリップボードに書く
+## 関数は記録するものに差し替える (runner でブラウザを開かないため)。失敗したら quit(1) する
+func _check_share_saves(main: Control) -> bool:
+	var opened: Array[String] = []
+	main.url_opener = func(url: String) -> Error:
+		opened.append(url)
+		return OK
+	main.clipboard_writer = func(_text: String) -> void: pass
+	var share_button: Button = main.get_node("EndingScreen/ShareButton")
+	main.call("_share")
+	var frames: int = 0
+	while share_button.disabled and frames < SHARE_WAIT_FRAME_LIMIT:
+		await process_frame
+		frames += 1
+	var status: String = main.get_node("EndingScreen/ShareStatus").text
+	if opened.size() != 1 or not status.begins_with(main.SHARE_SAVED_TEXT % ""):
+		push_error("共有の操作で画像の保存と投稿画面の URL が揃わない: %s / %s" % [opened, status])
+		quit(1)
+		return false
+	print("share: " + status.split("\n")[0])
+	return true
+
+
 ## エンディングの画面を撮影し、結果の画像を共有で保存するのと同じ処理 (メインシーンの save_result_image) で保存して、
 ## 保存した PNG が結果の画像を描く SubViewport と同じ大きさで、エンディング名・結果・ハッシュタグと URL の各 Label の
-## 範囲に文字が描かれている (背景と違う色の画素がある) ことを確かめる。失敗したら quit(1) する
+## 範囲に文字が描かれている (背景と違う色の画素がある) ことを確かめ、最後に共有の操作の保存を通す。失敗したら quit(1) する
 func _capture_ending(main: Control) -> bool:
 	if not await _capture("tmp/screenshot-ending.png"):
 		return false
@@ -88,7 +114,7 @@ func _capture_ending(main: Control) -> bool:
 			quit(1)
 			return false
 	print("screenshot: " + RESULT_IMAGE_PATH)
-	return true
+	return await _check_share_saves(main)
 
 
 ## image の rect の範囲で、background と違う色の画素の数 (文字が描かれているかの判定用)。PNG は 8 bit に量子化されて

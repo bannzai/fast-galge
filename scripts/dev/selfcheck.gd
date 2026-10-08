@@ -185,6 +185,8 @@ const SAMPLE_RESULT: Dictionary = {
 	ResultScript.CHOICES: 5,
 	ResultScript.TIMEOUTS: 0,
 }
+## 結果の画像 (scenes/result_card.tscn) のエンディング名の 1 行に収まる文字数の上限 (幅 1080 px・72 px の全角 15 文字)
+const MAX_ENDING_NAME_LENGTH: int = 14
 ## 文面の文字数の上限の検証で、どのエンディングでも超えないことを確かめる時に入れる最大の値
 ## (本編の所要時間の上限と選択肢の数の上限)
 const LONGEST_RESULT_VALUES: Dictionary = {
@@ -495,6 +497,13 @@ func _check_result_text() -> void:
 	]:
 		_check(text.contains(expected), "文面: %s が入る" % expected)
 	for ending: Dictionary in _ending_lines():
+		_check(
+			ending[ScenarioScript.NAME].length() <= MAX_ENDING_NAME_LENGTH,
+			(
+				"エンディング名の長さ: %s が結果の画像の 1 行に収まる %d 文字以内 (%d 文字)"
+				% [ending[ScenarioScript.ENDING], MAX_ENDING_NAME_LENGTH, ending[ScenarioScript.NAME].length()]
+			)
+		)
 		var longest: Dictionary = LONGEST_RESULT_VALUES.duplicate()
 		longest[ResultScript.ENDING_NAME] = ending[ScenarioScript.NAME]
 		var length: int = ResultScript.weighted_length(ResultScript.share_text(longest))

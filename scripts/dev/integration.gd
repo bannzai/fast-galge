@@ -121,7 +121,7 @@ func _check_sample_with_keys(game_state: Node, main: Control) -> void:
 
 
 ## 共有のボタンの流れ。X の投稿画面を開く関数とクリップボードに書く関数を記録するものに差し替え (runner でブラウザを
-## 開かないため)、ボタンのタップで結果の文面の URL を開き、デスクトップでは文面をコピーし、結果の表示が出て、
+## 開かないため)、ボタンのタップと S キーで結果の文面の URL を開き、デスクトップでは文面をコピーし、結果の表示が出て、
 ## ボタンが押せる状態に戻ること。保存を待つ間にエンディングの画面を離れると投稿画面を開かず表示もしないこと。
 ## 画像の保存は headless では行えない (ERR_UNAVAILABLE) ため、保存の失敗の表示が出る。保存の待ち (数フレーム) は
 ## ボタンが押せる状態に戻るまで待って確かめる。最後はタイトルに戻る
@@ -151,6 +151,10 @@ func _check_share(game_state: Node, main: Control) -> void:
 		status_label.text.contains(main.SHARE_SAVE_FAILED_TEXT % error_string(ERR_UNAVAILABLE)),
 		"共有: headless では画像を保存できないことを表示する"
 	)
+	opened.clear()
+	await _hold_keys([KEY_S], 1)
+	await _wait_until(func() -> bool: return not share_button.disabled)
+	_check(opened == [expected_url], "共有: S キーでも結果の文面の URL を開く (%s)" % [opened])
 	opened.clear()
 	main.call("_share")
 	_check(share_button.disabled, "共有: 保存を待つ間はボタンを押せない")

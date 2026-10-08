@@ -262,7 +262,7 @@ offset_right = 620.0
 offset_bottom = 576.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 28
-text = "X で共有"
+text = "X で共有 [S]"
 
 [node name="TitleButton" type="Button" parent="EndingScreen"]
 layout_mode = 0

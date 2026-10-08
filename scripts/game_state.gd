@@ -45,7 +45,8 @@ var affection: Dictionary = {}
 var backlog: Array[Dictionary] = []
 ## 到達したエンディングの ID (到達した順。重複なし)
 var reached_endings: Array[String] = []
-## 今回の会話で進めた時間の合計 (秒)。結果画面の所要時間
+## 今回の会話で進めた時間の合計 (秒)。結果画面の所要時間。advance に渡された時間の合計で、1 フレームの上限
+## (ConversationScript.MAX_FRAME_SECONDS) で切り詰めた後の値のため、描画が止まった分は実時間より短くなる
 var play_seconds: float = 0.0
 ## 今回の会話で制限時間内に選んだ選択肢の数と、時間切れの回数
 var choice_count: int = 0
