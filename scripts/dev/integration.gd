@@ -121,7 +121,8 @@ func _check_sample_with_keys(game_state: Node, main: Control) -> void:
 
 
 ## 共有のボタンの流れ。X の投稿画面を開く関数とクリップボードに書く関数を記録するものに差し替え (runner でブラウザを
-## 開かないため)、ボタンのタップと S キーで結果の文面の URL を開き、デスクトップでは文面をコピーし、結果の表示が出て、
+## 開かないため)、保存フォルダを返す関数は空を返すものに差し替え (headless では保存できないため OS に聞かない)、
+## ボタンのタップと S キーで結果の文面の URL を開き、デスクトップでは文面をコピーし、結果の表示が出て、
 ## ボタンが押せる状態に戻ること。保存を待つ間にエンディングの画面を離れると投稿画面を開かず表示もしないこと。
 ## 画像の保存は headless では行えない (ERR_UNAVAILABLE) ため、保存の失敗の表示が出る。保存の待ち (数フレーム) は
 ## ボタンが押せる状態に戻るまで待って確かめる。最後はタイトルに戻る
@@ -132,6 +133,7 @@ func _check_share(game_state: Node, main: Control) -> void:
 		opened.append(url)
 		return OK
 	main.clipboard_writer = func(text: String) -> void: copied.append(text)
+	main.pictures_dir_provider = func() -> String: return ""
 	var share_button: Button = main.get_node("EndingScreen/ShareButton")
 	var status_label: Label = main.get_node("EndingScreen/ShareStatus")
 	var expected_url: String = main.share_url()
