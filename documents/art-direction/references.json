@@ -1,0 +1,40 @@
+{
+  "references": [
+    {
+      "id": "a235a0c30f18",
+      "sha256": "a235a0c30f188cdaeda6c0581d5b020329870dc0843bbfb38914e78fdbfcdbd3",
+      "path": "documents/art-direction/title-1.png",
+      "prompt": "��タイトル画面: 夕方の校門に立つ 2 人のヒロイン、画面全体を左から右へ走る流線、下 1/3 はクリーム色の帯 (タイトル用の空き)",
+      "generator": "imagegen",
+      "purpose": "title",
+      "status": "candidate",
+      "note": "関門 2 の第 1 候補。校門・夕方・ヒロイン 2 人 (早口の短髪に流線、無口の長髪は線が少ない)・下 1/3 にタイトル用の空き",
+      "recorded_at": "2026-10-08T11:52:38Z",
+      "updated_at": "2026-10-08T11:52:38Z"
+    },
+    {
+      "id": "8771b62ef81d",
+      "sha256": "8771b62ef81d0b7011a85afccde457dbf444d5526dba6ade1c82ff237fb96304",
+      "path": "documents/art-direction/play-1.png",
+      "prompt": "��会話中: 左 1/3 に早口で紅潮した短髪の少女のバストアップ、右に少しぼけた朝の教室、下 1/4 にクリームの紙のメッセージウィンドウと暗い名札、ウィンドウの上に半分減ったオレンジの時間バー",
+      "generator": "imagegen",
+      "purpose": "play",
+      "status": "candidate",
+      "note": "関門 2 の第 1 候補。左に立ち絵 (早口で紅潮)、右に朝の教室、下にクリームのメッセージウィンドウ (文字の代わりに流れる筋)、上にオレンジの残り時間バー",
+      "recorded_at": "2026-10-08T11:52:38Z",
+      "updated_at": "2026-10-08T11:52:38Z"
+    },
+    {
+      "id": "dbaacba20bb9",
+      "sha256": "dbaacba20bb9c9ea26555be199c4f3222c9337635ab01eccfed0757702688fe2",
+      "path": "documents/art-direction/result-1.png",
+      "prompt": "��結果画面: 紺の背景の中央に破れた縁のクリームの紙のカード、大きなエンディング名の空き、所要時間の小さな行とストップウォッチ、カードの左からオレンジの流線、隅に 2 色刷りの 2 人のスタンプ",
+      "generator": "imagegen",
+      "purpose": "result",
+      "status": "candidate",
+      "note": "関門 2 の第 1 候補。SNS 共有用の結果カード。破れた縁の紙、エンディング名の空き、所要時間の行とストップウォッチ、紺とオレンジの 2 色の 2 人のスタンプ、左からのオレンジの流線",
+      "recorded_at": "2026-10-08T11:52:38Z",
+      "updated_at": "2026-10-08T11:52:38Z"
+    }
+  ]
+}
