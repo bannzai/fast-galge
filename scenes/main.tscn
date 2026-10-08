@@ -47,7 +47,18 @@ offset_right = 840.0
 offset_bottom = 480.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 32
-text = "はじめる [Enter]"
+text = "はじめから [Enter]"
+
+[node name="ContinueButton" type="Button" parent="TitleScreen"]
+visible = false
+layout_mode = 0
+offset_left = 440.0
+offset_top = 500.0
+offset_right = 840.0
+offset_bottom = 580.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 32
+text = "つづきから [C]"
 
 [node name="ConversationScreen" type="Control" parent="."]
 visible = false
