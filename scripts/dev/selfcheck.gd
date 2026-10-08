@@ -18,6 +18,8 @@ const SAVE_TEST_PATH: String = "res://tmp/selfcheck-save.json"
 const BROKEN_SAVE_TEXTS: Array[String] = [
 	"", "{", "not json", "[1, 2]", "42", '{"version": 2}', '{"version": "1"}', "{}"
 ]
+## ファイルの読み書きの検証で、壊れた保存データとして書き込む中身 (途中で切れた JSON)
+const BROKEN_SAVE_FILE_TEXT: String = '{"version": 1, "chapter": "route_'
 ## 素材の置き場所と、出典・ライセンスの記録
 const ASSETS_DIR: String = "res://assets"
 const CREDITS_PATH: String = "res://assets/CREDITS.md"
@@ -614,7 +616,7 @@ func _check_save_file() -> void:
 	_check(loader.reached_endings == ["hina_good"] and loader.is_cleared(), "読み込み: 到達したエンディングを読み戻す")
 
 	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
-	file.store_string('{"version": 1, "chapter": "route_')
+	file.store_string(BROKEN_SAVE_FILE_TEXT)
 	file.close()
 	loader.load_from(path)
 	_check(loader.loaded_broken, "壊れた保存データ: 読めないファイルを壊れたと判定する")
@@ -623,13 +625,21 @@ func _check_save_file() -> void:
 		"壊れた保存データ: 既定値で始める"
 	)
 	_check(
-		not FileAccess.file_exists(path) and FileAccess.file_exists(broken_path),
-		"壊れた保存データ: 元のファイルを退避して残す"
+		FileAccess.file_exists(path) and not FileAccess.file_exists(broken_path),
+		"壊れた保存データ: 読み込みでは元のファイルを動かさない"
 	)
 	loader.load_from(path)
-	_check(not loader.loaded_broken, "壊れた保存データ: 退避した後の読み込みでは壊れていない扱い")
-	loader.loaded_broken = true
+	_check(loader.loaded_broken, "壊れた保存データ: 読み込み直しても壊れた判定のまま (読み込みは冪等)")
 	_check(loader.save() == OK and not loader.loaded_broken, "壊れた保存データ: 保存し直すと知らせを消す")
+	_check(
+		FileAccess.get_file_as_string(broken_path) == BROKEN_SAVE_FILE_TEXT,
+		"壊れた保存データ: 保存する時に元のファイルを退避し、中身をそのまま残す"
+	)
+	loader.load_from(path)
+	_check(
+		not loader.loaded_broken and not loader.has_progress() and not loader.is_cleared(),
+		"壊れた保存データ: 保存し直した後の読み込みは既定値で壊れていない"
+	)
 	loader.free()
 	_remove_file(path)
 	_remove_file(broken_path)

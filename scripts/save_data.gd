@@ -1,7 +1,9 @@
 extends Node
 ## 保存データ (autoload の SaveData)。章の区切りでのオートセーブ (章の ID と好感度) と、到達したエンディングを持つ。
 ## 保存先は端末内の user:// の JSON 1 ファイル (documents/PROJECT.md「技術・配信」) で、起動時に読み込み、変えるたびに書き出す。
-## 読めない・形が違う保存データは壊れたものとして既定値で始め、元のファイルは BROKEN_SUFFIX を付けて残す。
+## 読めない・形が違う保存データは壊れたものとして既定値で始め、元のファイルは次に保存する時に BROKEN_SUFFIX を付けて
+## 退避してから書く (読み込みではファイルを動かさない。検証 (scripts/dev/) が保存先を変える前に autoload の起動時の
+## 読み込みが走るため、読み込みでプレイヤーのファイルを動かすと検証がプレイヤーの保存データを書き換えてしまう)。
 ## 一部の値だけがおかしい時は、その値だけを既定値にして残りを使う。
 ## 到達したエンディングの記録はここだけが持つ (GameState は会話の進行だけを持ち、エンディングに着いたらここに記録する)。
 
@@ -9,7 +11,8 @@ extends Node
 const SAVE_PATH: String = "user://save.json"
 ## 保存データの形式の版。形式を変えたら上げ、parse() で古い版を読み替える
 const VERSION: int = 1
-## 壊れた保存データを退避する時にファイル名へ足す文字列。次の保存で上書きして失わないよう、読み込んだ時に退避する
+## 壊れた保存データを退避する時にファイル名へ足す文字列。保存で上書きして中身を確かめる手がかりを失わないよう、
+## 保存の直前に退避する
 const BROKEN_SUFFIX: String = ".broken"
 ## 書き出し途中のファイル名へ足す文字列。書き終えてから保存先へ移し、途中で落ちても保存データを壊さない
 const WRITING_SUFFIX: String = ".writing"
@@ -31,7 +34,7 @@ var chapter: String = ""
 var affection: Dictionary = {}
 ## 到達したエンディングの ID (到達した順。重複なし)
 var reached_endings: Array[String] = []
-## 直近の読み込みで保存データが壊れていて既定値で始めたか。次に保存したら消す
+## 直近の読み込みで保存データが壊れていて既定値で始めたか。次に保存したら (壊れたファイルを退避してから) 消す
 var loaded_broken: bool = false
 
 
@@ -40,33 +43,41 @@ func _ready() -> void:
 	load_from(path)
 
 
-## at の保存データを読み込む。以降の保存先も at にする。無ければ既定値で始める。
-## 壊れていたら既定値で始め、ファイルを at + BROKEN_SUFFIX へ退避する。
-## 退避するため、壊れたファイルを読んだ時だけは冪等でない (2 回目は保存データが無い扱いで loaded_broken が false になる)。
-## 退避しないと、次の保存で壊れたファイルを上書きして、中身を確かめる手がかりが無くなる
+## at の保存データを読み込む。以降の保存先も at にする。無ければ既定値で始める。壊れていたら既定値で始める
+## (ファイルは動かさず、次の save() が退避する)
 func load_from(at: String) -> void:
 	path = at
 	var data: Dictionary = default_data()
 	if FileAccess.file_exists(path):
 		data = parse(FileAccess.get_file_as_string(path))
 	loaded_broken = data[KEY_BROKEN]
-	if loaded_broken:
-		DirAccess.rename_absolute(path, path + BROKEN_SUFFIX)
 	chapter = data[KEY_CHAPTER]
 	affection = data[KEY_AFFECTION]
 	reached_endings = data[KEY_REACHED_ENDINGS]
 
 
-## 今の進行と記録を保存先へ書き出す。書き出せたら壊れていた知らせを消す
+## 今の進行と記録を保存先へ書き出す。読み込んだ保存データが壊れていたら、先に path + BROKEN_SUFFIX へ退避する。
+## 書き出し途中のファイルは、書き終えたことを確かめてから保存先へ移す (書けなかった時は既存の保存データを残す)。
+## 書き出せたら壊れていた知らせを消す
 func save() -> Error:
+	if loaded_broken and FileAccess.file_exists(path):
+		var evacuate: Error = DirAccess.rename_absolute(path, path + BROKEN_SUFFIX)
+		if evacuate != OK:
+			push_error("壊れた保存データを退避できない: %s (%s)" % [path, error_string(evacuate)])
+			return evacuate
 	var writing: String = path + WRITING_SUFFIX
 	var file: FileAccess = FileAccess.open(writing, FileAccess.WRITE)
 	if file == null:
 		var open_error: Error = FileAccess.get_open_error()
 		push_error("保存データを書き出せない: %s (%s)" % [writing, error_string(open_error)])
 		return open_error
-	file.store_string(serialize(chapter, affection, reached_endings))
+	var stored: bool = file.store_string(serialize(chapter, affection, reached_endings))
+	var write_error: Error = file.get_error()
 	file.close()
+	if not stored or write_error != OK:
+		DirAccess.remove_absolute(writing)
+		push_error("保存データを書き終えられない: %s (%s)" % [writing, error_string(write_error)])
+		return write_error if write_error != OK else ERR_FILE_CANT_WRITE
 	var status: Error = DirAccess.rename_absolute(writing, path)
 	if status != OK:
 		push_error("保存データを保存先へ移せない: %s (%s)" % [path, error_string(status)])

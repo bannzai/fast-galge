@@ -57,7 +57,7 @@ func _run_scenes(game_state: Node, save_data: Node) -> void:
 
 
 ## 壊れた保存データ (JSON として読めないファイル) を読み込んでも落ちず、既定値 (途中の保存なし) で始まり、
-## 元のファイルが退避されること。確かめた後は退避したファイルを消し、保存データが無い状態に戻す
+## 次の保存で元のファイルが退避されること。確かめた後は保存データと退避したファイルを消し、保存データが無い状態に戻す
 func _check_broken_save(save_data: Node) -> void:
 	var file: FileAccess = FileAccess.open(save_data.path, FileAccess.WRITE)
 	file.store_string("{broken")
@@ -66,9 +66,14 @@ func _check_broken_save(save_data: Node) -> void:
 	_check(save_data.loaded_broken, "壊れた保存データ: 壊れたと判定する")
 	_check(not save_data.has_progress() and not save_data.is_cleared(), "壊れた保存データ: 既定値で始まる")
 	_check(
-		FileAccess.file_exists(save_data.path + save_data.BROKEN_SUFFIX),
-		"壊れた保存データ: 元のファイルを退避する"
+		not FileAccess.file_exists(save_data.path + save_data.BROKEN_SUFFIX),
+		"壊れた保存データ: 読み込みでは元のファイルを動かさない"
 	)
+	_check(
+		save_data.save() == OK and FileAccess.file_exists(save_data.path + save_data.BROKEN_SUFFIX),
+		"壊れた保存データ: 保存する時に元のファイルを退避する"
+	)
+	_remove_file(save_data.path)
 	_remove_file(save_data.path + save_data.BROKEN_SUFFIX)
 	save_data.load_from(save_data.path)
 
