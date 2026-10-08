@@ -1,0 +1,30 @@
+[
+  {"text": "放課後の教室。サンプルの会話が始まる。"},
+  {"speaker": "ヒナ", "expression": "smile", "text": "ねえ、ちょっといい？"},
+  {"speaker": "ユウ", "text": "なに。"},
+  {"speaker": "ヒナ", "expression": "shy", "text": "今日、一緒に帰らない？"},
+  {
+    "speaker": "ユウ",
+    "choices": [
+      {"text": "一緒に帰ろう", "affection": {"hina": 1}, "goto": "sample_together"},
+      {"text": "用事がある", "affection": {"hina": -1}, "goto": "sample_alone"}
+    ],
+    "timeout": "sample_silent"
+  },
+  {"label": "sample_together"},
+  {"speaker": "ヒナ", "expression": "smile", "text": "やった！じゃあ校門で待ってるね！"},
+  {"goto": "sample_after"},
+  {"label": "sample_alone"},
+  {"speaker": "ヒナ", "expression": "sad", "text": "そっか。じゃあ、また明日。"},
+  {"goto": "sample_after"},
+  {"label": "sample_silent"},
+  {"speaker": "ヒナ", "expression": "angry", "text": "無視！？二秒も！？"},
+  {"label": "sample_after"},
+  {"text": "チャイムが鳴った。"},
+  {"goto": "sample_good", "if_affection": {"hina": 1}},
+  {"speaker": "ユウ", "text": "ひとりで帰った。"},
+  {"ending": "sample_bad", "name": "ひとりの帰り道", "summary": "サンプルの bad エンディング"},
+  {"label": "sample_good"},
+  {"speaker": "ユウ", "text": "ふたりで帰った。"},
+  {"ending": "sample_good", "name": "ふたりの帰り道", "summary": "サンプルの good エンディング"}
+]
