@@ -123,7 +123,8 @@ func _check_sample_with_keys(game_state: Node, main: Control) -> void:
 ## 共有のボタンの流れ。X の投稿画面を開く関数とクリップボードに書く関数を記録するものに差し替え (runner でブラウザを
 ## 開かないため)、ボタンのタップで結果の文面の URL を開き、デスクトップでは文面をコピーし、結果の表示が出て、
 ## ボタンが押せる状態に戻ること。保存を待つ間にエンディングの画面を離れると投稿画面を開かず表示もしないこと。
-## 画像の保存は headless では行えない (ERR_UNAVAILABLE) ため、保存の失敗の表示が出る。最後はタイトルに戻る
+## 画像の保存は headless では行えない (ERR_UNAVAILABLE) ため、保存の失敗の表示が出る。保存の待ち (数フレーム) は
+## ボタンが押せる状態に戻るまで待って確かめる。最後はタイトルに戻る
 func _check_share(game_state: Node, main: Control) -> void:
 	var opened: Array[String] = []
 	var copied: Array[String] = []
@@ -136,6 +137,7 @@ func _check_share(game_state: Node, main: Control) -> void:
 	var expected_url: String = main.share_url()
 	var expected_text: String = ResultScript.share_text(game_state.result())
 	await _click(share_button)
+	await _wait_until(func() -> bool: return not share_button.disabled)
 	_check(opened == [expected_url], "共有: ボタンのタップで結果の文面の URL を開く (%s)" % [opened])
 	if OS.has_feature("pc"):
 		_check(copied == [expected_text], "共有: デスクトップでは文面をクリップボードに書く")
@@ -154,8 +156,7 @@ func _check_share(game_state: Node, main: Control) -> void:
 	_check(share_button.disabled, "共有: 保存を待つ間はボタンを押せない")
 	main.call("_apply", GameStateScript.Command.CONFIRM)
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "エンディングの決定でタイトルに戻る")
-	await process_frame
-	await process_frame
+	await _wait_until(func() -> bool: return not share_button.disabled)
 	_check(
 		opened.is_empty() and status_label.text.is_empty() and not share_button.disabled,
 		"共有: 待つ間にエンディングの画面を離れたら投稿画面を開かず表示もしない"
