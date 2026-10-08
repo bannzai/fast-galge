@@ -82,8 +82,8 @@ static func weighted_length(text: String) -> int:
 			if token.begins_with("http://") or token.begins_with("https://"):
 				total += URL_WEIGHT
 				continue
-			for code: int in token.to_utf32():
-				total += 1 if _is_single_weight(code) else 2
+			for index: int in range(token.length()):
+				total += 1 if _is_single_weight(token.unicode_at(index)) else 2
 	return total
 
 
