@@ -1,6 +1,7 @@
 extends "res://scripts/dev/headless_check.gd"
 ## キー入力とマウスのクリック (タップの代わり) でメインシーンを動かし、会話の自動送り・選択・時間切れ・バックログの開閉・
-## エンディングへの到達と、表示が会話の進行に追従することを検証する (headless)。Makefile が --fixed-fps 60 を付けて
+## エンディングへの到達・章の区切りでのオートセーブとタイトルの「つづきから」での再開と、表示が会話の進行に追従することを
+## 検証する (headless)。保存先は tmp/ の検証用のファイルに変える。Makefile が --fixed-fps 60 を付けて
 ## 起動し、会話の時間を実時間から切り離して 1 フレーム 1/60 秒で進める (本編を実時間で流すと 1 周に約 5 分かかるため)。
 ## 実行方法は AGENTS.md を参照。失敗したら quit(1) で終わる。
 
@@ -24,9 +25,11 @@ func _initialize() -> void:
 ## 物理フレームを進めながら入力を流すため、同じ実行中に重ねて呼び出さない
 func _run() -> void:
 	var game_state: Node = root.get_node_or_null("GameState")
+	var save_data: Node = _isolate_save("integration")
 	_check(game_state != null, "前提: autoload の GameState が root にある")
-	if game_state != null:
-		await _run_scenes(game_state)
+	_check(save_data != null, "前提: autoload の SaveData が root にある")
+	if game_state != null and save_data != null:
+		await _run_scenes(game_state, save_data)
 	if failed:
 		quit(1)
 		return
@@ -34,29 +37,53 @@ func _run() -> void:
 	quit(0)
 
 
-## メインシーンを置いてサンプルシナリオと本編を入力で進め、最後にシーンを消す
-func _run_scenes(game_state: Node) -> void:
+## 壊れた保存データで起動しても落ちず既定値に戻ることを確かめてから、メインシーンを置いてサンプルシナリオと本編を
+## 入力で進め、最後にシーンを消す
+func _run_scenes(game_state: Node, save_data: Node) -> void:
+	_check_broken_save(save_data)
 	var main: Control = _add_main()
 	await process_frame
 	game_state.scenario_paths = SAMPLE_SCENARIO_PATHS
-	await _check_sample_with_keys(game_state, main)
+	await _check_sample_with_keys(game_state, main, save_data)
 	await _check_sample_timeout(game_state, main)
 	await _check_sample_with_taps(game_state, main)
+	await _check_sample_resume(game_state, main, save_data)
 	game_state.scenario_paths = GameStateScript.MAIN_SCENARIO_PATHS
-	await _check_main_ending(game_state, 1, "hina_good")
-	await _check_main_ending(game_state, -1, "hina_bad")
+	await _check_main_ending(game_state, 1, "hina_good", save_data)
+	await _check_main_ending(game_state, -1, "hina_bad", save_data)
 	main.queue_free()
 	await process_frame
 	await create_timer(AUDIO_RELEASE_TIME).timeout
 
 
+## 壊れた保存データ (JSON として読めないファイル) を読み込んでも落ちず、既定値 (途中の保存なし) で始まり、
+## 元のファイルが退避されること。確かめた後は退避したファイルを消し、保存データが無い状態に戻す
+func _check_broken_save(save_data: Node) -> void:
+	var file: FileAccess = FileAccess.open(save_data.path, FileAccess.WRITE)
+	file.store_string("{broken")
+	file.close()
+	save_data.load_from(save_data.path)
+	_check(save_data.loaded_broken, "壊れた保存データ: 壊れたと判定する")
+	_check(not save_data.has_progress() and not save_data.is_cleared(), "壊れた保存データ: 既定値で始まる")
+	_check(
+		FileAccess.file_exists(save_data.path + save_data.BROKEN_SUFFIX),
+		"壊れた保存データ: 元のファイルを退避する"
+	)
+	_remove_file(save_data.path + save_data.BROKEN_SUFFIX)
+	save_data.load_from(save_data.path)
+
+
 ## サンプルシナリオをキー入力で進める。文字送りを入力で止められないこと、バックログの開閉、選択肢を選ぶこと、
 ## エンディングの表示とタイトルへ戻ること
-func _check_sample_with_keys(game_state: Node, main: Control) -> void:
+func _check_sample_with_keys(game_state: Node, main: Control, save_data: Node) -> void:
 	var message_label: Label = main.get_node("ConversationScreen/MessageWindow/Message")
 	var speaker_label: Label = main.get_node("ConversationScreen/MessageWindow/Speaker")
+	var continue_button: Button = main.get_node("TitleScreen/ContinueButton")
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "起動直後はタイトル")
 	_check(main.get_node("TitleScreen").visible, "タイトルの画面が出ている")
+	_check(not continue_button.visible, "保存が無い間はつづきからのボタンが出ない")
+	await _hold_keys([KEY_C], 1)
+	_check(game_state.screen == GameStateScript.Screen.TITLE, "保存が無い間は C を押してもタイトルのまま")
 	await _hold_keys([KEY_ENTER], 1)
 	_check(game_state.screen == GameStateScript.Screen.PLAYING, "Enter で会話中になる")
 	_check(main.get_node("ConversationScreen").visible, "会話中の画面が出ている")
@@ -96,6 +123,13 @@ func _check_sample_with_keys(game_state: Node, main: Control) -> void:
 	await _hold_keys([CHOICE_KEYS[0]], 1)
 	_check(not _is_choosing(game_state), "1 のキーで選択肢を選べる")
 	_check(game_state.affection == {"hina": 1}, "選んだ選択肢の好感度が足される")
+	_check(not save_data.has_progress(), "章の区切りを通るまではオートセーブされない")
+	await _wait_until(func() -> bool: return save_data.has_progress())
+	_check(
+		save_data.chapter == "sample_after" and save_data.affection == {"hina": 1},
+		"章の区切りを通ると章の ID と好感度がオートセーブされる"
+	)
+	_check(FileAccess.file_exists(save_data.path), "オートセーブの保存データがファイルに書かれる")
 	await _wait_until(func() -> bool: return not game_state.is_playing())
 	_check(game_state.screen == GameStateScript.Screen.ENDING, "会話の終わりでエンディングになる")
 	_check(game_state.current_line().get("ending") == "sample_good", "好感度を満たすと good に着く")
@@ -103,9 +137,11 @@ func _check_sample_with_keys(game_state: Node, main: Control) -> void:
 		main.get_node("EndingScreen/Name").text == game_state.current_line()["name"],
 		"エンディング名が表示される"
 	)
-	_check(game_state.reached_endings == ["sample_good"], "到達したエンディングが記録される")
+	_check(save_data.reached_endings == ["sample_good"], "到達したエンディングが記録される")
 	await _hold_keys([KEY_ENTER], 1)
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "エンディングの Enter でタイトルに戻る")
+	await process_frame
+	_check(continue_button.visible, "保存があるとタイトルにつづきからのボタンが出る")
 
 
 ## 会話中に B でバックログを開閉する。開いている間は会話が止まり、流れたメッセージが一覧に載り、閉じると続きから
@@ -185,9 +221,44 @@ func _check_sample_with_taps(game_state: Node, main: Control) -> void:
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "タイトルへのボタンのタップでタイトルに戻る")
 
 
+## タイトルの「つづきから」で、保存した章の区切りの次から保存した好感度で再開する。アプリを起動し直した時と同じく
+## 保存データをファイルから読み込み直してから、ボタンのタップと C のキーの両方で再開する。
+## 直前のタップの検証が 2 つ目の選択肢 (好感度 -1) で章の区切りを通っているため、再開すると bad に着く
+func _check_sample_resume(game_state: Node, main: Control, save_data: Node) -> void:
+	var message_label: Label = main.get_node("ConversationScreen/MessageWindow/Message")
+	save_data.load_from(save_data.path)
+	_check(
+		not save_data.loaded_broken and save_data.chapter == "sample_after",
+		"つづきから: ファイルから読み込み直した保存データに章の区切りがある"
+	)
+	_check(save_data.affection == {"hina": -1}, "つづきから: ファイルから読み込み直した保存データに好感度がある")
+	await _click(main.get_node("TitleScreen/ContinueButton"))
+	_check(game_state.screen == GameStateScript.Screen.PLAYING, "つづきからのボタンのタップで会話中になる")
+	var chapter: int = ScenarioScript.chapter_index(game_state.lines, "sample_after")
+	_check(
+		game_state.position == chapter + 1 and game_state.backlog.size() == 1,
+		"つづきから: 保存した章の区切りの次のメッセージから始まる"
+	)
+	_check(message_label.text == game_state.lines[chapter + 1]["text"], "つづきから: 再開したメッセージが表示される")
+	_check(game_state.affection == {"hina": -1}, "つづきから: 保存した好感度で再開する")
+	await _wait_until(func() -> bool: return not game_state.is_playing())
+	_check(game_state.current_line().get("ending") == "sample_bad", "つづきから: 再開した好感度でエンディングに着く")
+	await _hold_keys([KEY_ENTER], 1)
+	await _hold_keys([KEY_C], 1)
+	_check(
+		game_state.screen == GameStateScript.Screen.PLAYING and game_state.position == chapter + 1,
+		"つづきから: C のキーでも保存した章の区切りの次から再開する"
+	)
+	await _wait_until(func() -> bool: return not game_state.is_playing())
+	await _hold_keys([KEY_ENTER], 1)
+	_check(game_state.screen == GameStateScript.Screen.TITLE, "つづきから: 再開した会話の終わりからタイトルに戻る")
+
+
 ## 本編を最初から最後まで、選択肢ごとに好感度が最も上がる (direction = 1) / 下がる (direction = -1) ものをキーで選んで
-## 進め、expected のエンディングに着くこと
-func _check_main_ending(game_state: Node, direction: int, expected: String) -> void:
+## 進め、expected のエンディングに着くこと。章の区切りを 2 箇所以上通り、最後の章の区切りが保存されていること
+func _check_main_ending(
+	game_state: Node, direction: int, expected: String, save_data: Node
+) -> void:
 	await _hold_keys([KEY_ENTER], 1)
 	var frames: int = 0
 	while game_state.is_playing() and frames < WAIT_FRAME_LIMIT:
@@ -206,7 +277,18 @@ func _check_main_ending(game_state: Node, direction: int, expected: String) -> v
 		"本編: 好感度を%s選択で %s に着く (好感度 %s)"
 		% ["上げる" if direction > 0 else "下げる", expected, game_state.affection]
 	)
-	_check(game_state.reached_endings.has(expected), "本編: %s が到達の記録に入る" % expected)
+	_check(save_data.reached_endings.has(expected), "本編: %s が到達の記録に入る" % expected)
+	var chapter: int = ScenarioScript.chapter_index(game_state.lines, "route_hina_autumn")
+	var at_chapter: Dictionary = ConversationScript.playthrough(
+		game_state.lines.slice(0, chapter + 1), _option_by_affection.bind(direction)
+	)
+	_check(
+		save_data.chapter == "route_hina_autumn" and save_data.affection == at_chapter["affection"],
+		(
+			"本編: 最後の章の区切りと、その時点の好感度が保存されている (%s %s)"
+			% [save_data.chapter, save_data.affection]
+		)
+	)
 	var estimated: Dictionary = ConversationScript.playthrough(
 		game_state.lines, _option_by_affection.bind(direction)
 	)

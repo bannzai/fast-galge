@@ -18,6 +18,26 @@ const FAST_FORWARD_STEP: float = 0.05
 const AUDIO_RELEASE_TIME: float = 0.25
 
 
+## autoload の SaveData の保存先を res://tmp/<name>-save.json に変えて読み込み直し、SaveData を返す (検証・撮影が
+## プレイヤーの保存データ user:// を書き換えないため)。前の実行が残した保存データと退避したファイルは先に消す。
+## SaveData が無ければ null
+func _isolate_save(name: String) -> Node:
+	var save_data: Node = root.get_node_or_null("SaveData")
+	if save_data == null:
+		return null
+	var path: String = ProjectSettings.globalize_path("res://tmp/%s-save.json" % name)
+	_remove_file(path)
+	_remove_file(path + save_data.BROKEN_SUFFIX)
+	save_data.load_from(path)
+	return save_data
+
+
+## path のファイルがあれば消す
+func _remove_file(path: String) -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+
+
 ## メインシーンを置き、画面の遷移で読み込み直せるよう current_scene にして返す
 func _add_main() -> Control:
 	var main: Control = MAIN_SCENE.instantiate()
