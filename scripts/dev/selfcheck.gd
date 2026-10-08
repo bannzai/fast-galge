@@ -331,14 +331,19 @@ func _check_main_scenario() -> void:
 					% [case[0], MAIN_MIN_CHOICES, MAIN_MAX_CHOICES, picked.size()]
 				)
 			)
-		_check_main_progress(case, lines, result, picked.size())
+		_check_main_progress(
+			case,
+			lines,
+			result,
+			picked.filter(func(pick: int) -> bool: return pick != ConversationScript.TIMEOUT).size()
+		)
 	_check_route_split(ScenarioScript.load_lines([GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS[0]]))
 
 
 ## 本編を GameState で case の進め方 (選択肢が出たらすぐ選ぶ) で最後まで進めた時の所要時間・好感度・エンディングが、
 ## expected (同じ進め方の playthrough の結果) と一致すること。playthrough は選択肢ごとに制限時間を丸ごと数え、GameState は
-## 選んだ時点で次へ進むため、所要時間は選んだ選択肢の数 (choices) × 制限時間を引いて比べる。所要時間の見積もりが
-## 実際の会話の進み方とずれていないことを確かめる
+## 選んだ時点で次へ進むため、所要時間は選んだ (時間切れでない) 選択肢の数 (choices) × 制限時間を引いて比べる。
+## 所要時間の見積もりが実際の会話の進み方とずれていないことを確かめる
 func _check_main_progress(case: Array, lines: Array, expected: Dictionary, choices: int) -> void:
 	var game_state: Node = GAME_STATE_SCRIPT.new()
 	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
