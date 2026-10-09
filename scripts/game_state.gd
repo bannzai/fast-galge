@@ -21,10 +21,13 @@ const TRANSITIONS: Dictionary = {
 	Screen.BACKLOG: {Command.BACKLOG: Screen.PLAYING, Command.CONFIRM: Screen.PLAYING},
 	Screen.ENDING: {Command.CONFIRM: Screen.TITLE},
 }
-## 本編のシナリオ。共通パート、1 人目のヒロインのルートの順につなげて読む
+## 本編のシナリオ。共通パート、2 人のヒロインのルート、共通の bad エンディングの順につなげて読む (共通パートの最後の
+## 移動が好感度で分ける)
 const MAIN_SCENARIO_PATHS: Array[String] = [
 	"res://scenario/common.json",
 	"res://scenario/route_hina.json",
+	"res://scenario/route_nagi.json",
+	"res://scenario/common_bad.json",
 ]
 
 ## 表示している画面。起動時はタイトル

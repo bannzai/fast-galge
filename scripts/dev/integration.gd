@@ -1,13 +1,13 @@
 extends "res://scripts/dev/headless_check.gd"
 ## キー入力とマウスのクリック (タップの代わり) でメインシーンを動かし、会話の自動送り・選択・時間切れ・バックログの開閉・
-## エンディングへの到達・章の区切りでのオートセーブとタイトルの「つづきから」での再開と、表示が会話の進行に追従することを
-## 検証する (headless)。保存先は tmp/ の検証用のファイルに変える。Makefile が --fixed-fps 60 を付けて
+## 5 つのエンディングへの到達・章の区切りでのオートセーブとタイトルの「つづきから」での再開と、表示が会話の進行に追従する
+## ことを検証する (headless)。保存先は tmp/ の検証用のファイルに変える。Makefile が --fixed-fps 60 を付けて
 ## 起動し、会話の時間を実時間から切り離して 1 フレーム 1/60 秒で進める (本編を実時間で流すと 1 周に約 5 分かかるため)。
 ## 実行方法は AGENTS.md を参照。失敗したら quit(1) で終わる。
 
 ## 画面 (Screen) の定義と本編のシナリオを持つ autoload の GameState のスクリプト
 const GameStateScript := preload("res://scripts/game_state.gd")
-## 会話が進むのを待つ上限のフレーム数 (60 fps で 10 分)。本編 1 周の所要時間の上限 7 分より長くして、
+## 会話が進むのを待つ上限のフレーム数 (60 fps で 10 分)。本編 1 周 (ルートに入る周) の所要時間の上限 7 分より長くして、
 ## 会話が終わらない不具合の時だけ待ちを打ち切る
 const WAIT_FRAME_LIMIT: int = 36000
 ## バックログを開いている間に会話が止まることを確かめるために待つ時間 (秒)。メッセージの表示時間の上限より長い
@@ -15,6 +15,8 @@ const PAUSE_CHECK_TIME: float = 1.0
 ## 描画が止まっていた後の 1 フレームとしてメインシーンに渡す経過時間 (秒)。上限なしに進めると、サンプルシナリオの
 ## 選択肢の時間切れまで過ぎる長さ
 const LONG_FRAME_TIME: float = 5.0
+## ヒロインの ID と、そのルートで最後に通る章の区切りの ID (ルートの中間に置いた章の区切り)
+const LAST_CHAPTERS: Dictionary = {"hina": "route_hina_autumn", "nagi": "route_nagi_autumn"}
 
 
 ## tree の準備が終わってから _run() を始める (シーンの追加は _initialize() の後でないとできない)
@@ -49,8 +51,8 @@ func _run_scenes(game_state: Node, save_data: Node) -> void:
 	await _check_sample_with_taps(game_state, main)
 	await _check_sample_resume(game_state, main, save_data)
 	game_state.scenario_paths = GameStateScript.MAIN_SCENARIO_PATHS
-	await _check_main_ending(game_state, 1, "hina_good", save_data)
-	await _check_main_ending(game_state, -1, "hina_bad", save_data)
+	for case: Array in MAIN_ENDING_CASES:
+		await _check_main_ending(game_state, case, save_data)
 	main.queue_free()
 	await process_frame
 	await create_timer(AUDIO_RELEASE_TIME).timeout
@@ -259,19 +261,23 @@ func _check_sample_resume(game_state: Node, main: Control, save_data: Node) -> v
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "つづきから: 再開した会話の終わりからタイトルに戻る")
 
 
-## 本編を最初から最後まで、選択肢ごとに好感度が最も上がる (direction = 1) / 下がる (direction = -1) ものをキーで選んで
-## 進め、expected のエンディングに着くこと。最後の章の区切りと、その時点の好感度が保存されていること
+## 本編を最初から最後まで、case (MAIN_ENDING_CASES の 1 つ) の進め方で選択肢をキーで選んで (共通 bad の進め方では
+## 何も押さずに時間切れで) 進め、case のエンディングに着くこと。ルートに入る周は、そのルートの最後の章の区切り
+## (LAST_CHAPTERS) とその時点の好感度が保存されていること。共通 bad の周は章の区切りを通らないため、保存が変わらないこと
 ## (章の区切りの数はシナリオの形式として selfcheck が数える)
-func _check_main_ending(
-	game_state: Node, direction: int, expected: String, save_data: Node
-) -> void:
+func _check_main_ending(game_state: Node, case: Array, save_data: Node) -> void:
+	var expected: String = case[0]
+	var chapter_before: String = save_data.chapter
 	await _hold_keys([KEY_ENTER], 1)
 	var frames: int = 0
 	while game_state.is_playing() and frames < WAIT_FRAME_LIMIT:
-		if _is_choosing(game_state):
-			await _hold_keys(
-				[CHOICE_KEYS[_option_by_affection(game_state.current_line(), direction)]], 1
-			)
+		var pick: int = (
+			_pick_for_case(case, game_state.lines, game_state.position)
+			if _is_choosing(game_state)
+			else ConversationScript.TIMEOUT
+		)
+		if pick != ConversationScript.TIMEOUT:
+			await _hold_keys([CHOICE_KEYS[pick]], 1)
 		else:
 			await process_frame
 		frames += 1
@@ -280,36 +286,59 @@ func _check_main_ending(
 			game_state.screen == GameStateScript.Screen.ENDING
 			and game_state.current_line().get("ending") == expected
 		),
-		"本編: 好感度を%s選択で %s に着く (好感度 %s)"
-		% ["上げる" if direction > 0 else "下げる", expected, game_state.affection]
+		"本編: %s への進め方で着く (好感度 %s)" % [expected, game_state.affection]
 	)
 	_check(save_data.reached_endings.has(expected), "本編: %s が到達の記録に入る" % expected)
-	var chapter: int = ScenarioScript.chapter_index(game_state.lines, "route_hina_autumn")
-	var at_chapter: Dictionary = ConversationScript.playthrough(
-		game_state.lines.slice(0, chapter + 1), _option_by_affection.bind(direction)
-	)
-	_check(
-		save_data.chapter == "route_hina_autumn" and save_data.affection == at_chapter["affection"],
-		(
-			"本編: 最後の章の区切りと、その時点の好感度が保存されている (%s %s)"
-			% [save_data.chapter, save_data.affection]
-		)
-	)
+	var lines: Array = game_state.lines
+	_check_last_chapter_saved(case, lines, save_data, chapter_before)
 	var estimated: Dictionary = ConversationScript.playthrough(
-		game_state.lines, _option_by_affection.bind(direction)
+		lines, func(choice: Dictionary) -> int: return _pick_for_case(case, lines, lines.find(choice))
 	)
 	_check(
 		game_state.affection == estimated["affection"],
-		"本編: キーで選んだ選択肢の好感度が足されている"
+		"本編: %s の好感度が見積もりと一致する" % expected
+	)
+	var timed_out: bool = game_state.backlog.any(
+		func(entry: Dictionary) -> bool: return entry["text"] == ConversationScript.TIMEOUT_TEXT
 	)
 	_check(
-		not game_state.backlog.any(
-			func(entry: Dictionary) -> bool: return entry["text"] == ConversationScript.TIMEOUT_TEXT
-		),
-		"本編: 時間切れではなく、キーで選んで進んでいる"
+		timed_out == case[1].is_empty(),
+		(
+			"本編: %s は%s進んでいる"
+			% [expected, "何も選ばず時間切れで" if case[1].is_empty() else "時間切れではなくキーで選んで"]
+		)
 	)
 	await _hold_keys([KEY_ENTER], 1)
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "本編: エンディングからタイトルに戻る")
+
+
+## case の進め方で lines を最後まで進めた後の保存データ (save_data) の検証。ルートに入る周は、そのルートの最後の
+## 章の区切り (LAST_CHAPTERS) と、そこまで同じ進め方で進めた時点の好感度が保存されている。共通 bad の周は章の区切りを
+## 通らないため、周の前の章 (chapter_before) のまま
+func _check_last_chapter_saved(
+	case: Array, lines: Array, save_data: Node, chapter_before: String
+) -> void:
+	var expected: String = case[0]
+	if case[1].is_empty():
+		_check(
+			save_data.chapter == chapter_before,
+			"本編: %s では章の区切りを通らず、保存は変わらない (%s)" % [expected, save_data.chapter]
+		)
+		return
+	var last_chapter: String = LAST_CHAPTERS[case[1]]
+	var until_chapter: Array = lines.slice(0, ScenarioScript.chapter_index(lines, last_chapter) + 1)
+	var at_chapter: Dictionary = ConversationScript.playthrough(
+		until_chapter,
+		func(choice: Dictionary) -> int:
+			return _pick_for_case(case, until_chapter, until_chapter.find(choice))
+	)
+	_check(
+		save_data.chapter == last_chapter and save_data.affection == at_chapter["affection"],
+		(
+			"本編: %s の最後の章の区切りと、その時点の好感度が保存されている (%s %s)"
+			% [expected, save_data.chapter, save_data.affection]
+		)
+	)
 
 
 ## until.call() が true になるまでフレームを待つ (WAIT_FRAME_LIMIT フレームで打ち切る)
