@@ -57,8 +57,8 @@ jobs:
           path: tmp/*.log
           if-no-files-found: warn
           retention-days: 7
-      # Godot が import で生成する .uid (リソース参照に使う。コミット対象) を、Godot をローカルで動かさない
-      # 開発マシンから取り込めるように artifact に残す。コミット済みなら差分は出ない
+      # Godot が import で生成する .uid と素材の .import (リソース参照に使う。コミット対象) を、Godot をローカルで
+      # 動かさない開発マシンから取り込めるように artifact に残す。コミット済みなら差分は出ない
       - name: Upload generated uid files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -66,6 +66,7 @@ jobs:
           path: |
             scripts/**/*.uid
             scenes/**/*.uid
+            assets/**/*.import
           if-no-files-found: warn
           retention-days: 7
       # Linux の実行ファイルは tar にまとめる (upload-artifact は実行権限を保持せず、展開後に起動できなくなるため)
