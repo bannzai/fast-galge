@@ -21,7 +21,8 @@ func _run() -> void:
 
 
 ## 代表画面を、本編を早送りしながら順に撮影する。最後はエンディングからタイトルへ戻り、章の区切りを通った後の
-## タイトル (「つづきから」が出ている) を撮る。
+## タイトル (「つづきから」とゆっくりモードのボタンが出ている)、エンディング一覧 (見たエンディングが 1 つ埋まる)、
+## ゆっくりモードの会話 (文字を出している途中) を撮る。
 ## 失敗した撮影は _capture() が quit(1) 済みなので、false を受けたらそのまま抜ける
 func _capture_scenes() -> bool:
 	var game_state: Node = root.get_node("GameState")
@@ -52,7 +53,9 @@ func _capture_scenes() -> bool:
 	return true
 
 
-## 本編の残りを 1 つ目の選択肢で早送りしてエンディングを撮り、タイトルへ戻って「つづきから」が出たタイトルを撮る
+## 本編の残りを 1 つ目の選択肢で早送りしてエンディングを撮り、タイトルへ戻って「つづきから」が出たタイトルを撮り、
+## エンディング一覧を開いて撮り、最後にゆっくりモードで始めて文字を出している途中の会話を撮る (ゆっくりモードでは
+## 時間で会話が進まないため _fast_forward を使わない)
 func _capture_ending_and_title(game_state: Node) -> bool:
 	while game_state.is_playing():
 		_fast_forward(game_state, _is_choosing.bind(game_state))
@@ -60,7 +63,16 @@ func _capture_ending_and_title(game_state: Node) -> bool:
 	if not await _capture("tmp/screenshot-ending.png"):
 		return false
 	await _hold_keys([KEY_ENTER], 1)
-	return await _capture("tmp/screenshot-title-continue.png")
+	if not await _capture("tmp/screenshot-title-continue.png"):
+		return false
+	await _hold_keys([KEY_E], 1)
+	if not await _capture("tmp/screenshot-endings.png"):
+		return false
+	await _hold_keys([KEY_E], 1)
+	await _hold_keys([KEY_S], 1)
+	await _hold_keys([KEY_ENTER], 1)
+	await create_timer(SETTLE_TIME).timeout
+	return await _capture("tmp/screenshot-slow-playing.png")
 
 
 ## 選択肢で止まっている画面を撮影する。撮影は実時間で進むため、描画を待つ間に制限時間が切れていたら (撮れたのが

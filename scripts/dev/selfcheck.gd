@@ -1,8 +1,9 @@
 extends "res://scripts/dev/headless_check.gd"
-## 画面の遷移表、会話エンジンの計算 (表示時間・時間切れ・好感度・分岐・章の区切り・所要時間)、シナリオの形式、本編 (5 つの
-## エンディングへの到達・各ルートの所要時間・共通パートの分岐・章の区切りの数)、GameState の会話の進行 (章の区切りでの
-## オートセーブと「つづきから」の再開を含む)、保存データの読み書きと壊れたデータの扱い、全シーンのロード、全素材が
-## assets/CREDITS.md に記録されていることの検証 (headless)。
+## 画面の遷移表、会話エンジンの計算 (表示時間・時間切れ・好感度・分岐・章の区切り・所要時間・ゆっくりモードの速さの倍率)、
+## シナリオの形式、本編 (5 つのエンディングへの到達・各ルートの所要時間・共通パートの分岐・章の区切りの数)、GameState の
+## 会話の進行 (章の区切りでのオートセーブと「つづきから」の再開、ゆっくりモードの解放の条件と手で送る進行を含む)、
+## エンディング一覧の名前、保存データの読み書きと壊れたデータの扱い、全シーンのロード、全素材が assets/CREDITS.md に
+## 記録されていることの検証 (headless)。
 ## 実行方法は AGENTS.md を参照。release ビルドで assert が消えるため、明示的な判定と exit code で結果を返す。
 
 ## 起動検証 (main_scene の --quit) ではロードされない遷移先も含めた全シーン
@@ -85,6 +86,36 @@ const TRANSITION_CASES: Array[Array] = [
 		GAME_STATE_SCRIPT.Screen.ENDING,
 		"エンディングのつづきからでは画面が変わらない",
 	],
+	[
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		GAME_STATE_SCRIPT.Command.ENDINGS,
+		GAME_STATE_SCRIPT.Screen.ENDINGS,
+		"タイトルでエンディング一覧を開ける",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.ENDINGS,
+		GAME_STATE_SCRIPT.Command.ENDINGS,
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		"エンディング一覧をもう一度押すとタイトルに戻る",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.ENDINGS,
+		GAME_STATE_SCRIPT.Command.CONFIRM,
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		"エンディング一覧で決定するとタイトルに戻る",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.ENDINGS,
+		GAME_STATE_SCRIPT.Command.CONTINUE,
+		GAME_STATE_SCRIPT.Screen.ENDINGS,
+		"エンディング一覧のつづきからでは画面が変わらない",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		GAME_STATE_SCRIPT.Command.ENDINGS,
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		"会話中にエンディング一覧は開けない",
+	],
 ]
 ## メッセージの表示時間の検証 (本文の文字数・期待する秒数)。10 文字以下は下限、20 文字以上は上限に張り付く
 const MESSAGE_SECONDS_CASES: Array[Array] = [
@@ -93,6 +124,13 @@ const MESSAGE_SECONDS_CASES: Array[Array] = [
 	[15, 0.6],
 	[20, 0.8],
 	[40, 0.8],
+]
+## ゆっくりモードの文字送りの検証 (経過時間をゆっくりモードの表示時間で割った割合・期待する出し終えた割合)
+const REVEALED_RATIO_CASES: Array[Array] = [
+	[0.0, 0.0],
+	[0.5, 0.5],
+	[1.0, 1.0],
+	[3.0, 1.0],
 ]
 ## 分岐・好感度・時間切れ・所要時間の計算の検証に使う、選択肢 1 つのシナリオ。
 ## 1 つ目の選択肢 (up) は条件つきの移動を満たして good、2 つ目 (down) と時間切れ (late) は満たさず bad に着く
@@ -230,11 +268,15 @@ const ROUTE_STUB_LINES: Array = [
 func _initialize() -> void:
 	_check_transitions()
 	_check_message_seconds()
+	_check_speed_rate()
 	_check_branch()
 	_check_chapter()
 	_check_scenario_format()
 	_check_main_scenario()
 	_check_game_state_conversation()
+	_check_slow_mode_unlock()
+	_check_slow_mode_conversation()
+	_check_ending_names()
 	_check_save_parse()
 	_check_save_file()
 	_check_scenes()
@@ -257,6 +299,13 @@ func _check_transitions() -> void:
 	_check(game_state.is_playing(), "apply の後は会話中")
 	_check(not game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM), "apply: 画面が変わらないと false")
 	game_state.free()
+	var listing: Node = GAME_STATE_SCRIPT.new()
+	_check(listing.apply(GAME_STATE_SCRIPT.Command.ENDINGS), "apply: タイトルでエンディング一覧を開ける")
+	_check(listing.screen == GAME_STATE_SCRIPT.Screen.ENDINGS, "apply: エンディング一覧の画面に移る")
+	listing.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
+	_check(listing.screen == GAME_STATE_SCRIPT.Screen.TITLE, "apply: 一覧で決定するとタイトルに戻る")
+	_check(listing.lines.is_empty(), "apply: エンディング一覧の開閉では会話が始まらない")
+	listing.free()
 
 
 ## メッセージの表示時間 (MESSAGE_SECONDS_CASES)、選択肢の行で止まる時間、1 フレームで進める時間の検証
@@ -282,6 +331,25 @@ func _check_message_seconds() -> void:
 		),
 		"1 フレームの時間: 描画が止まっていた後の長い経過時間は上限までしか進めない"
 	)
+
+
+## 会話の速さの倍率の計算。ゆっくりモードは通常と同じ計算に倍率を渡し、表示時間と制限時間を倍率で割る
+func _check_speed_rate() -> void:
+	var slow: float = ConversationScript.SLOW_SPEED_RATE
+	_check(ConversationScript.speed_rate(false) == 1.0, "倍率: 通常の速さは 1")
+	_check(ConversationScript.speed_rate(true) == slow, "倍率: ゆっくりモードの倍率")
+	_check(slow > 0.0 and slow < 1.0, "倍率: ゆっくりモードは通常より遅い")
+	for case: Array in MESSAGE_SECONDS_CASES:
+		var seconds: float = ConversationScript.message_seconds("あ".repeat(case[0]), slow)
+		_check(is_equal_approx(seconds, case[1] / slow), "倍率: %d 文字は %.1f 秒を倍率で割る" % case)
+	var choice_seconds: float = ConversationScript.stop_seconds(BRANCH_LINES[1], slow)
+	var limit: float = ConversationScript.CHOICE_SECONDS / slow
+	_check(is_equal_approx(choice_seconds, limit), "倍率: 選択肢の制限時間も倍率で割る")
+	var text: String = "あ".repeat(15)
+	for case: Array in REVEALED_RATIO_CASES:
+		var elapsed: float = case[0] * ConversationScript.message_seconds(text, slow)
+		var ratio: float = ConversationScript.revealed_ratio(text, elapsed, slow)
+		_check(is_equal_approx(ratio, case[1]), "文字送り: 表示時間の %.1f 倍で %.1f まで出す" % case)
 
 
 ## 分岐・時間切れ・好感度・所要時間の計算の検証 (BRANCH_LINES)
@@ -642,6 +710,82 @@ func _check_game_state_conversation() -> void:
 	saver.free()
 	loader.free()
 	_remove_save_files(path)
+
+
+## ゆっくりモードの解放の条件。クリア済み (到達したエンディングがある) の時だけ、タイトルで切り替えられる
+func _check_slow_mode_unlock() -> void:
+	var game_state: Node = GAME_STATE_SCRIPT.new()
+	var label: String = "ゆっくりモード: "
+	_check(not game_state.can_select_slow_mode(), label + "保存データが無ければ選べない")
+	var saver: Node = SAVE_DATA_SCRIPT.new()
+	game_state.save_data = saver
+	_check(not game_state.toggle_slow_mode(), label + "エンディングを見ていなければ選べない")
+	_check(not game_state.slow_mode, label + "選べない間は通常の速さのまま")
+	saver.reached_endings.append("sample_bad")
+	_check(game_state.can_select_slow_mode(), label + "エンディングを 1 つ見ると選べる")
+	_check(game_state.toggle_slow_mode() and game_state.slow_mode, label + "タイトルで切り替えられる")
+	_check(game_state.toggle_slow_mode() and not game_state.slow_mode, label + "もう一度で通常に戻る")
+	game_state.scenario_paths = SAMPLE_SCENARIO_PATHS
+	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
+	_check(not game_state.toggle_slow_mode(), label + "会話中は切り替えられない")
+	game_state.free()
+	saver.free()
+
+
+## ゆっくりモードの会話の進行 (サンプルシナリオ)。時間が経っても自動では送らず、文字を出し切るだけ。決定 (send) で
+## 出し切る前は全文を出し、出し切った後は次の行へ送る。選択肢は時間切れにならない。通常の速さでは send しても送れない
+func _check_slow_mode_conversation() -> void:
+	var label: String = "ゆっくりモード: "
+	var game_state: Node = GAME_STATE_SCRIPT.new()
+	game_state.scenario_paths = SAMPLE_SCENARIO_PATHS
+	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
+	_check(not game_state.send(), "通常の速さ: 決定してもメッセージは送れない")
+	_check(game_state.revealed_ratio() == 1.0, "通常の速さ: メッセージは最初から全文を出す")
+	game_state.free()
+	game_state = GAME_STATE_SCRIPT.new()
+	game_state.scenario_paths = SAMPLE_SCENARIO_PATHS
+	game_state.slow_mode = true
+	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
+	_check(game_state.revealed_ratio() == 0.0, label + "メッセージの文字は始めは出ていない")
+	game_state.advance(60.0)
+	_check(game_state.position == 0, label + "時間が経ってもメッセージは自動で送られない")
+	_check(game_state.revealed_ratio() == 1.0, label + "表示時間が経つと文字を出し切る")
+	_check(game_state.send() and game_state.position == 1, label + "出し切った後の決定で次へ送る")
+	_check(game_state.revealed_ratio() == 0.0, label + "送った次のメッセージは出し始めから")
+	_check(game_state.send() and game_state.position == 1, label + "出し切る前の決定では送らない")
+	_check(game_state.revealed_ratio() == 1.0, label + "出し切る前の決定で全文を出す")
+	while not _is_choosing(game_state):
+		game_state.send()
+	game_state.advance(60.0)
+	_check(game_state.affection.is_empty(), label + "選択肢は時間が経っても時間切れにならない")
+	_check(not game_state.send(), label + "選択肢で止まっている間は決定で送れない")
+	_check(game_state.choose(0), label + "選択肢を選べる")
+	while game_state.is_playing():
+		game_state.send()
+	_check(game_state.current_line().get("ending") == "sample_good", label + "送り続けると着く")
+	game_state.free()
+
+
+## エンディング一覧の名前。シナリオのエンディングを並び順に並べ、到達していないものは名前を隠す
+func _check_ending_names() -> void:
+	var sample: Array = ScenarioScript.load_lines(SAMPLE_SCENARIO_PATHS)
+	var main_lines: Array = ScenarioScript.load_lines(GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS)
+	var unknown: String = GAME_STATE_SCRIPT.UNKNOWN_ENDING_NAME
+	var none: Array[String] = []
+	var good: Array[String] = ["sample_good"]
+	var all_main: Array[String] = []
+	for case: Array in MAIN_ENDING_CASES:
+		all_main.append(case[0])
+	var names: Array[String] = GAME_STATE_SCRIPT.ending_names(main_lines, all_main)
+	var label: String = "エンディング一覧: "
+	_check(GAME_STATE_SCRIPT.ending_names(sample, none) == [unknown, unknown], label + "未到達は隠す")
+	var with_good: Array[String] = GAME_STATE_SCRIPT.ending_names(sample, good)
+	_check(with_good == [unknown, "ふたりの帰り道"], label + "到達したものだけ名前を出す")
+	_check(names.size() == all_main.size() and not names.has(unknown), label + "本編は全部出る %s" % [names])
+	var game_state: Node = GAME_STATE_SCRIPT.new()
+	var hidden: Array[String] = GAME_STATE_SCRIPT.ending_names(main_lines, none)
+	_check(game_state.ending_list() == hidden, label + "保存データが無ければ本編を全部隠す")
+	game_state.free()
 
 
 ## 保存データの文字列の解釈。壊れたデータ (JSON でない・形が違う・版が違う) と、一部の値だけがおかしいデータ

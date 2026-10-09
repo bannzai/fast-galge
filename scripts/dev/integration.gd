@@ -1,7 +1,8 @@
 extends "res://scripts/dev/headless_check.gd"
 ## キー入力とマウスのクリック (タップの代わり) でメインシーンを動かし、会話の自動送り・選択・時間切れ・バックログの開閉・
-## 5 つのエンディングへの到達・章の区切りでのオートセーブとタイトルの「つづきから」での再開と、表示が会話の進行に追従する
-## ことを検証する (headless)。保存先は tmp/ の検証用のファイルに変える。Makefile が --fixed-fps 60 を付けて
+## 5 つのエンディングへの到達・章の区切りでのオートセーブとタイトルの「つづきから」での再開・タイトルから開くエンディング
+## 一覧の表示・クリア後のゆっくりモードでの手で送る進行と、表示が会話の進行に追従することを検証する (headless)。
+## 保存先は tmp/ の検証用のファイルに変える。Makefile が --fixed-fps 60 を付けて
 ## 起動し、会話の時間を実時間から切り離して 1 フレーム 1/60 秒で進める (本編を実時間で流すと 1 周に約 5 分かかるため)。
 ## 実行方法は AGENTS.md を参照。失敗したら quit(1) で終わる。
 
@@ -17,6 +18,8 @@ const PAUSE_CHECK_TIME: float = 1.0
 const LONG_FRAME_TIME: float = 5.0
 ## ヒロインの ID と、そのルートで最後に通る章の区切りの ID (ルートの中間に置いた章の区切り)
 const LAST_CHAPTERS: Dictionary = {"hina": "route_hina_autumn", "nagi": "route_nagi_autumn"}
+## エンディング一覧で、まだ到達していないエンディングの名前の代わりに出る文字列
+const UNKNOWN: String = GameStateScript.UNKNOWN_ENDING_NAME
 
 
 ## tree の準備が終わってから _run() を始める (シーンの追加は _initialize() の後でないとできない)
@@ -50,9 +53,11 @@ func _run_scenes(game_state: Node, save_data: Node) -> void:
 	await _check_sample_timeout(game_state, main)
 	await _check_sample_with_taps(game_state, main)
 	await _check_sample_resume(game_state, main, save_data)
+	await _check_slow_mode(game_state, main)
 	game_state.scenario_paths = GameStateScript.MAIN_SCENARIO_PATHS
 	for case: Array in MAIN_ENDING_CASES:
 		await _check_main_ending(game_state, case, save_data)
+	await _check_main_endings_list(game_state, main)
 	main.queue_free()
 	await process_frame
 	await create_timer(AUDIO_RELEASE_TIME).timeout
@@ -91,6 +96,17 @@ func _check_sample_with_keys(game_state: Node, main: Control, save_data: Node) -
 	_check(not continue_button.visible, "保存が無い間はつづきからのボタンが出ない")
 	await _hold_keys([KEY_C], 1)
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "保存が無い間は C を押してもタイトルのまま")
+	_check(not main.get_node("TitleScreen/SlowModeButton").visible, "クリア前はゆっくりモードのボタンが出ない")
+	await _hold_keys([KEY_S], 1)
+	_check(not game_state.slow_mode, "クリア前は S を押してもゆっくりモードにならない")
+	_check(main.get_node("TitleScreen/EndingsButton").visible, "タイトルにエンディング一覧のボタンが出る")
+	await _hold_keys([KEY_E], 1)
+	_check_endings_list(game_state, main, [UNKNOWN, UNKNOWN], "クリア前の E")
+	await _hold_keys([KEY_E], 1)
+	_check(
+		game_state.screen == GameStateScript.Screen.TITLE and main.get_node("TitleScreen").visible,
+		"エンディング一覧でもう一度 E を押すとタイトルに戻る"
+	)
 	await _hold_keys([KEY_ENTER], 1)
 	_check(game_state.screen == GameStateScript.Screen.PLAYING, "Enter で会話中になる")
 	_check(main.get_node("ConversationScreen").visible, "会話中の画面が出ている")
@@ -149,6 +165,10 @@ func _check_sample_with_keys(game_state: Node, main: Control, save_data: Node) -
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "エンディングの Enter でタイトルに戻る")
 	await process_frame
 	_check(continue_button.visible, "保存があるとタイトルにつづきからのボタンが出る")
+	await _click(main.get_node("TitleScreen/EndingsButton"))
+	_check_endings_list(game_state, main, [UNKNOWN, "ふたりの帰り道"], "good に着いた後のボタンのタップ")
+	await _click(main.get_node("EndingsScreen/CloseButton"))
+	_check(game_state.screen == GameStateScript.Screen.TITLE, "エンディング一覧のとじるボタンのタップでタイトルに戻る")
 
 
 ## 会話中に B でバックログを開閉する。開いている間は会話が止まり、流れたメッセージが一覧に載り、閉じると続きから
@@ -259,6 +279,100 @@ func _check_sample_resume(game_state: Node, main: Control, save_data: Node) -> v
 	await _wait_until(func() -> bool: return not game_state.is_playing())
 	await _hold_keys([KEY_ENTER], 1)
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "つづきから: 再開した会話の終わりからタイトルに戻る")
+
+
+## クリア後にタイトルでゆっくりモードを選び、サンプルシナリオを手で送って進める。時間が経っても自動では送られず
+## (文字は表示時間をかけて出し切る)、Enter とクリックで送り、選択肢は制限時間を過ぎても時間切れにならないこと。
+## 最後にタップで通常の速さへ戻す (戻さないと、時間切れで進む本編の共通 bad の周が待ちの上限まで終わらない)
+func _check_slow_mode(game_state: Node, main: Control) -> void:
+	var slow_mode_button: Button = main.get_node("TitleScreen/SlowModeButton")
+	var message_label: Label = main.get_node("ConversationScreen/MessageWindow/Message")
+	_check(slow_mode_button.visible, "ゆっくりモード: クリア後はタイトルにボタンが出る")
+	await _hold_keys([KEY_S], 1)
+	_check(game_state.slow_mode, "ゆっくりモード: S でゆっくりモードになる")
+	await process_frame
+	_check(slow_mode_button.text.contains("ON"), "ゆっくりモード: ボタンに ON が出る")
+	await _hold_keys([KEY_ENTER], 1)
+	_check(game_state.is_playing() and game_state.slow_mode, "ゆっくりモード: Enter でゆっくりモードの会話が始まる")
+	await process_frame
+	_check(message_label.visible_ratio < 1.0, "ゆっくりモード: メッセージの文字は少しずつ出る")
+	await create_timer(
+		ConversationScript.message_seconds(game_state.lines[0]["text"], game_state.speed_rate()) + 0.5
+	).timeout
+	_check(
+		game_state.position == 0 and game_state.backlog.size() == 1,
+		"ゆっくりモード: 表示時間が過ぎても自動ではメッセージが送られない"
+	)
+	_check(is_equal_approx(message_label.visible_ratio, 1.0), "ゆっくりモード: 表示時間が過ぎると文字を出し切る")
+	await _hold_keys([KEY_ENTER], 1)
+	_check(game_state.position == 1, "ゆっくりモード: 出し切った後の Enter で次のメッセージへ送る")
+	_check(message_label.visible_ratio < 1.0, "ゆっくりモード: 送った次のメッセージも文字は少しずつ出る")
+	await _hold_keys([KEY_ENTER], 1)
+	_check(
+		game_state.position == 1 and is_equal_approx(message_label.visible_ratio, 1.0),
+		"ゆっくりモード: 出し切る前の Enter では送らずに全文を出す"
+	)
+	await _click(main.get_node("ConversationScreen/MessageWindow"))
+	_check(game_state.position == 2, "ゆっくりモード: メッセージウィンドウのクリックで次のメッセージへ送る")
+	while not _is_choosing(game_state):
+		await _hold_keys([KEY_ENTER], 1)
+	await create_timer(ConversationScript.CHOICE_SECONDS + 0.5).timeout
+	_check(
+		_is_choosing(game_state) and game_state.affection.is_empty(),
+		"ゆっくりモード: 選択肢は制限時間を過ぎても時間切れにならない"
+	)
+	_check(
+		not main.get_node("ConversationScreen/Choices/TimeBar").visible,
+		"ゆっくりモード: 残り時間のバーが出ない"
+	)
+	await _hold_keys([CHOICE_KEYS[0]], 1)
+	_check(not _is_choosing(game_state) and game_state.affection == {"hina": 1}, "ゆっくりモード: 1 のキーで選べる")
+	while game_state.is_playing():
+		await _hold_keys([KEY_ENTER], 1)
+	_check(
+		game_state.current_line().get("ending") == "sample_good",
+		"ゆっくりモード: Enter で送り続けるとエンディングに着く"
+	)
+	await _hold_keys([KEY_ENTER], 1)
+	await _click(slow_mode_button)
+	_check(
+		game_state.screen == GameStateScript.Screen.TITLE and not game_state.slow_mode,
+		"ゆっくりモード: タイトルのボタンのタップで通常の速さに戻る"
+	)
+
+
+## 本編の 5 つのエンディングに着いた後、タイトルのエンディング一覧に本編の 5 つが全部埋まること
+func _check_main_endings_list(game_state: Node, main: Control) -> void:
+	await _hold_keys([KEY_E], 1)
+	var names: Array = []
+	for line: Dictionary in game_state.lines:
+		if line.has(ScenarioScript.ENDING):
+			names.append(line[ScenarioScript.NAME])
+	_check(names.size() == MAIN_ENDING_CASES.size(), "本編: エンディングが 5 つある")
+	_check_endings_list(game_state, main, names, "本編の 5 つに着いた後")
+	await _hold_keys([KEY_ENTER], 1)
+	_check(game_state.screen == GameStateScript.Screen.TITLE, "本編: エンディング一覧の Enter でタイトルに戻る")
+
+
+## エンディング一覧の画面が出ていて、一覧の行が expected (並び順の名前。未到達は UNKNOWN) と一致し、見た数が
+## UNKNOWN でない名前の数と一致すること。situation は検証の場面の説明
+func _check_endings_list(
+	game_state: Node, main: Control, expected: Array, situation: String
+) -> void:
+	_check(
+		game_state.screen == GameStateScript.Screen.ENDINGS and main.get_node("EndingsScreen").visible,
+		"エンディング一覧 (%s): 画面が出ている" % situation
+	)
+	var rows: PackedStringArray = main.get_node("EndingsScreen/Entries").text.split("\n")
+	var expected_rows: PackedStringArray = PackedStringArray()
+	for index: int in range(expected.size()):
+		expected_rows.append("%d. %s" % [index + 1, expected[index]])
+	_check(rows == expected_rows, "エンディング一覧 (%s): %s が並ぶ (実際は %s)" % [situation, expected_rows, rows])
+	var reached: int = expected.size() - expected.count(UNKNOWN)
+	_check(
+		main.get_node("EndingsScreen/Count").text.contains("%d / %d" % [reached, expected.size()]),
+		"エンディング一覧 (%s): 見た数が %d / %d" % [situation, reached, expected.size()]
+	)
 
 
 ## 本編を最初から最後まで、case (MAIN_ENDING_CASES の 1 つ) の進め方で選択肢をキーで選んで (共通 bad の進め方では
