@@ -1,8 +1,8 @@
 extends "res://scripts/dev/selfcheck_menu.gd"
 ## 画面の遷移表、会話エンジンの計算 (表示時間・時間切れ・好感度・分岐・章の区切り・所要時間)、シナリオの形式、本編 (5 つの
 ## エンディングへの到達・各ルートの所要時間・共通パートの分岐・章の区切りの数)、GameState の会話の進行 (章の区切りでの
-## オートセーブと「つづきから」の再開を含む) と結果の記録、結果の文面と X の投稿画面の URL の形、保存データの読み書きと
-## 壊れたデータの扱い、音量の保存と読み込みとバスへの反映、全シーンのロード、全素材が assets/CREDITS.md に記録され
+## オートセーブと「つづきから」の再開を含む) と結果の記録、結果の文面と X の投稿画面の URL の形、背景と立ち絵の
+## 決め方と素材、保存データの読み書きと壊れたデータの扱い、音量の保存と読み込みとバスへの反映、全シーンのロード、全素材が assets/CREDITS.md に記録され
 ## クレジット画面の文に出ることと、クレジット画面の問い合わせ先が紹介ページと一致することの検証 (headless。設定と
 ## クレジットの検証は継承元の scripts/dev/selfcheck_menu.gd)。
 ## 実行方法は AGENTS.md を参照。release ビルドで assert が消えるため、明示的な判定と exit code で結果を返す。
@@ -12,6 +12,8 @@ const SCENES: Array[String] = [
 	"res://scenes/main.tscn",
 	"res://scenes/result_card.tscn",
 ]
+## 背景と立ち絵の検証 (selfcheck.gd の行数を gdlint の上限に収めるため分けた)
+const StageCheckScript := preload("res://scripts/dev/stage_check.gd")
 ## 結果の文面と URL の組み立て
 const ResultScript := preload("res://scripts/result.gd")
 ## 保存・読み込みの検証で書き出す保存データ。プレイヤーの保存データ (user://) を書き換えないよう tmp/ に置く
@@ -135,6 +137,7 @@ const INVALID_SCENARIOS: Array[Array] = [
 	[[{"text": "a", "label": "x"}, ENDING_LINE], "行の種類が 2 つある"],
 	[[{"text": "a", "expresion": "smile"}, ENDING_LINE], "知らないキーがある"],
 	[[{"text": ""}, ENDING_LINE], "本文が空"],
+	[[{"text": "a", "background": ""}, ENDING_LINE], "背景が空"],
 	[[{"goto": "nowhere"}, ENDING_LINE], "移動先のラベルが無い"],
 	[[{"label": "back"}, {"text": "a"}, {"goto": "back"}, ENDING_LINE], "移動先が前の行にある"],
 	[[{"label": "x"}, {"label": "x"}, ENDING_LINE], "ラベルが重複している"],
@@ -267,6 +270,7 @@ func _initialize() -> void:
 	_check_scenario_format()
 	_check_main_scenario()
 	_check_game_state_conversation()
+	_check_stage()
 	_check_result_text()
 	_check_save_parse()
 	_check_save_file()
@@ -859,6 +863,14 @@ func _check_save_file() -> void:
 	)
 	loader.free()
 	_remove_save_files(path)
+
+
+## 背景と立ち絵の検証 (中身は scripts/dev/stage_check.gd)
+func _check_stage() -> void:
+	for failure: String in StageCheckScript.failures(
+		GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS, SAMPLE_SCENARIO_PATHS
+	):
+		_check(false, failure)
 
 
 ## 結果の文面と X の投稿画面の URL の検証。所要時間の表記、X の文字数の数え方、文面にエンディング名・結果・ハッシュタグ・
