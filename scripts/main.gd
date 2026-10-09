@@ -33,7 +33,8 @@ const BOOT_MESSAGE: String = "fast-galge boot"
 @onready var endings_button: Button = $TitleScreen/EndingsButton
 @onready var slow_mode_button: Button = $TitleScreen/SlowModeButton
 ## 会話中の画面と、ゆっくりモードでメッセージを送るタップを受ける、画面全体の透明なボタン
-## (立ち絵とメッセージウィンドウより手前、ログと選択肢のボタンより奥に置く)
+## (立ち絵とメッセージウィンドウより手前、ログと選択肢のボタンより奥に置く。ホバー・押下の見た目も描かないよう
+## self_modulate の不透明度を 0 にしている)
 @onready var conversation_screen: Control = $ConversationScreen
 @onready var send_area: Button = $ConversationScreen/SendArea
 ## 立ち絵の代わりの色面と、表情の名前を出すラベル (表情を持つメッセージの間だけ出す)
