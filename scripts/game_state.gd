@@ -1,16 +1,16 @@
 extends Node
 ## ゲーム進行の状態 (autoload の GameState)。いま表示している画面 (タイトル・会話中・バックログ・エンディング・設定・
-## クレジット)、会話の進行 (シナリオの位置・経過時間・好感度・バックログ)、結果画面の値 (所要時間・選んだ選択肢の数・
-## 時間切れの回数) を持つ。
+## クレジット・エンディング一覧)、会話の進行 (シナリオの位置・経過時間・好感度・バックログ)、結果画面の値 (所要時間・
+## 選んだ選択肢の数・時間切れの回数) と、ゆっくりモードを選んでいるかを持つ。
 ## 画面をまたいで参照する値はここに集める (UI ノードに状態を持たせない)。会話のルールの計算は scripts/conversation.gd。
 ## 章の区切りでのオートセーブと到達したエンディングの記録は SaveData (scripts/save_data.gd) に書く。
 
-## 表示している画面。会話が進むのは PLAYING の間だけで、BACKLOG を開いている間は止まる。SETTINGS と CREDITS は
-## タイトルから開く
-enum Screen { TITLE, PLAYING, BACKLOG, ENDING, SETTINGS, CREDITS }
-## 画面を切り替える操作 (project.godot の入力の confirm / backlog / continue / settings / credits)。CONTINUE はタイトルで
-## 保存した章から再開する
-enum Command { CONFIRM, BACKLOG, CONTINUE, SETTINGS, CREDITS }
+## 表示している画面。会話が進むのは PLAYING の間だけで、BACKLOG を開いている間は止まる。SETTINGS と CREDITS と
+## ENDINGS (エンディング一覧) はタイトルから開く
+enum Screen { TITLE, PLAYING, BACKLOG, ENDING, SETTINGS, CREDITS, ENDINGS }
+## 画面を切り替える操作 (project.godot の入力の confirm / backlog / continue / settings / credits / ending_list)。
+## CONTINUE はタイトルで保存した章から再開する。ENDINGS はタイトルでエンディング一覧を開閉する
+enum Command { CONFIRM, BACKLOG, CONTINUE, SETTINGS, CREDITS, ENDINGS }
 
 ## シナリオの保存形式の読み込みとキー
 const ScenarioScript := preload("res://scripts/scenario.gd")
@@ -26,13 +26,17 @@ const TRANSITIONS: Dictionary = {
 		Command.CONTINUE: Screen.PLAYING,
 		Command.SETTINGS: Screen.SETTINGS,
 		Command.CREDITS: Screen.CREDITS,
+		Command.ENDINGS: Screen.ENDINGS,
 	},
 	Screen.PLAYING: {Command.BACKLOG: Screen.BACKLOG},
 	Screen.BACKLOG: {Command.BACKLOG: Screen.PLAYING, Command.CONFIRM: Screen.PLAYING},
 	Screen.ENDING: {Command.CONFIRM: Screen.TITLE},
 	Screen.SETTINGS: {Command.SETTINGS: Screen.TITLE, Command.CONFIRM: Screen.TITLE},
 	Screen.CREDITS: {Command.CREDITS: Screen.TITLE, Command.CONFIRM: Screen.TITLE},
+	Screen.ENDINGS: {Command.ENDINGS: Screen.TITLE, Command.CONFIRM: Screen.TITLE},
 }
+## エンディング一覧で、まだ到達していないエンディングの名前の代わりに出す文字列
+const UNKNOWN_ENDING_NAME: String = "???"
 ## 本編のシナリオ。共通パート、2 人のヒロインのルート、共通の bad エンディングの順につなげて読む (共通パートの最後の
 ## 移動が好感度で分ける)
 const MAIN_SCENARIO_PATHS: Array[String] = [
@@ -66,6 +70,9 @@ var timeout_count: int = 0
 ## オートセーブと到達したエンディングの記録先 (autoload の SaveData)。null なら保存しない。
 ## 検証 (scripts/dev/selfcheck.gd) は tree に入れない SaveData の実体に差し替える
 var save_data: Node = null
+## ゆっくりモード (通常のギャルゲーの速さで、文字送りを手で送り、選択肢に制限時間が無い) で遊ぶか。クリア済みの時だけ
+## タイトルで切り替えられる。保存データには書かず、起動するたびに通常の速さから始める
+var slow_mode: bool = false
 
 
 ## autoload の SaveData を記録先にする (project.godot の autoload の順で、SaveData が先に用意されている)
@@ -78,6 +85,20 @@ func _ready() -> void:
 static func next_screen(current: Screen, command: Command) -> Screen:
 	var accepted: Dictionary = TRANSITIONS.get(current, {})
 	return accepted.get(command, current)
+
+
+## scenario_lines (シナリオの行) のエンディングの名前を並び順に並べ、reached (到達したエンディングの ID) に無いものを
+## UNKNOWN_ENDING_NAME にした一覧 (エンディング一覧の表示)
+static func ending_names(scenario_lines: Array, reached: Array[String]) -> Array[String]:
+	var names: Array[String] = []
+	for line: Dictionary in scenario_lines:
+		if line.has(ScenarioScript.ENDING):
+			names.append(
+				line[ScenarioScript.NAME]
+				if reached.has(line[ScenarioScript.ENDING])
+				else UNKNOWN_ENDING_NAME
+			)
+	return names
 
 
 ## command を受けて画面を移す。移ったら true。タイトルから会話中に移る時は、CONFIRM なら scenario_paths のシナリオを
@@ -98,6 +119,59 @@ func apply(command: Command) -> bool:
 	return true
 
 
+## ゆっくりモードの会話中にメッセージで止まっていれば、文字を出し切る前なら全文を出し、出し切った後なら次の行へ送る。
+## 送れた (文字を出し切ったか次の行へ進んだ) ら true。通常の速さでは文字送りを止めも早めもできないため何もしない。
+## 経過時間と会話の位置を書き換えるため冪等ではない
+func send() -> bool:
+	if not is_playing() or not slow_mode or not current_line().has(ScenarioScript.TEXT):
+		return false
+	var seconds: float = ConversationScript.stop_seconds(current_line(), speed_rate())
+	if elapsed < seconds:
+		elapsed = seconds
+	else:
+		elapsed = 0.0
+		_enter(position + 1)
+	return true
+
+
+## タイトルでゆっくりモードを選べる (クリア済み = エンディングを 1 つ以上見た) か
+func can_select_slow_mode() -> bool:
+	return save_data != null and save_data.is_cleared()
+
+
+## タイトルでゆっくりモードを選べる時、ゆっくりモードと通常の速さを切り替える。切り替えたら true。
+## 切り替えるたびに反転するため冪等ではない
+func toggle_slow_mode() -> bool:
+	if screen != Screen.TITLE or not can_select_slow_mode():
+		return false
+	slow_mode = not slow_mode
+	return true
+
+
+## いまの会話の速さの倍率
+func speed_rate() -> float:
+	return ConversationScript.speed_rate(slow_mode)
+
+
+## いま表示が止まっているメッセージの文字を出し終えている割合 (0〜1)。ゆっくりモードでメッセージを出している途中だけ
+## 1 未満になり、通常の速さと選択肢などメッセージでない行では 1
+func revealed_ratio() -> float:
+	if not slow_mode or not current_line().has(ScenarioScript.TEXT):
+		return 1.0
+	return ConversationScript.revealed_ratio(
+		current_line()[ScenarioScript.TEXT], elapsed, speed_rate()
+	)
+
+
+## エンディング一覧の表示。scenario_paths のシナリオのエンディングを並び順に、到達していないものを
+## UNKNOWN_ENDING_NAME にした名前の一覧
+func ending_list() -> Array[String]:
+	var reached: Array[String] = []
+	if save_data != null:
+		reached = save_data.reached_endings
+	return ending_names(ScenarioScript.load_lines(scenario_paths), reached)
+
+
 ## 会話が進む画面 (会話中) か
 func is_playing() -> bool:
 	return screen == Screen.PLAYING
@@ -114,12 +188,18 @@ func current_line() -> Dictionary:
 
 
 ## 会話中なら delta 秒だけ時間を進め、表示時間を過ぎたメッセージは次の行へ送り、制限時間を過ぎた選択肢は時間切れに
-## する。会話中でなければ何もしない (バックログを開いている間は会話が止まる)。経過時間を積むため冪等ではない
+## する。ゆっくりモードでは送りも時間切れもせず、経過時間を止まっている行の表示時間までで止める (文字を出し切るだけ)。
+## 会話中でなければ何もしない (バックログを開いている間は会話が止まる)。経過時間を積むため冪等ではない
 func advance(delta: float) -> void:
 	if not is_playing():
 		return
-	elapsed += delta
 	play_seconds += delta
+	if slow_mode:
+		elapsed = minf(
+			elapsed + delta, ConversationScript.stop_seconds(current_line(), speed_rate())
+		)
+		return
+	elapsed += delta
 	while is_playing() and elapsed >= ConversationScript.stop_seconds(current_line()):
 		elapsed -= ConversationScript.stop_seconds(current_line())
 		if current_line().has(ScenarioScript.CHOICES):

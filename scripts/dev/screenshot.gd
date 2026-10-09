@@ -36,7 +36,8 @@ func _run() -> void:
 
 
 ## 代表画面を、タイトルから開く設定とクレジットを撮ってから、本編を早送りしながら順に撮影する。最後はエンディングから
-## タイトルへ戻り、章の区切りを通った後のタイトル (「つづきから」が出ている) を撮る。
+## タイトルへ戻り、章の区切りを通った後のタイトル (「つづきから」とゆっくりモードのボタンが出ている)、エンディング一覧
+## (見たエンディングが 1 つ埋まる)、ゆっくりモードの会話 (文字を出している途中) を撮る。
 ## 失敗した撮影は _capture() が quit(1) 済みなので、false を受けたらそのまま抜ける
 func _capture_scenes() -> bool:
 	var game_state: Node = root.get_node("GameState")
@@ -81,7 +82,9 @@ func _capture_title_and_menus() -> bool:
 
 
 ## 本編の残りを 1 つ目の選択肢で早送りし、2 人目のヒロイン (ナギ) の立ち絵が出た画面と、エンディングと結果の画像を撮り、
-## 共有の操作の保存を通してから、タイトルへ戻って「つづきから」が出たタイトルを撮る
+## 共有の操作の保存を通してから、タイトルへ戻って「つづきから」が出たタイトルを撮り、エンディング一覧を開いて撮り、最後に
+## ゆっくりモードで始めて文字を出している途中の会話を撮る (ゆっくりモードでは時間で会話が進まないため _fast_forward を
+## 使わない)
 func _capture_rest(game_state: Node, main: Control) -> bool:
 	game_state.choose(0)
 	_fast_forward(
@@ -96,7 +99,16 @@ func _capture_rest(game_state: Node, main: Control) -> bool:
 	if not await _capture_ending(main):
 		return false
 	await _hold_keys([KEY_ENTER], 1)
-	return await _capture("tmp/screenshot-title-continue.png")
+	if not await _capture("tmp/screenshot-title-continue.png"):
+		return false
+	await _hold_keys([KEY_E], 1)
+	if not await _capture("tmp/screenshot-endings.png"):
+		return false
+	await _hold_keys([KEY_E], 1)
+	await _hold_keys([KEY_Y], 1)
+	await _hold_keys([KEY_ENTER], 1)
+	await create_timer(SETTLE_TIME).timeout
+	return await _capture("tmp/screenshot-slow-playing.png")
 
 
 ## 描画付きの起動で共有のボタンの操作 (_share) を通し、画像が保存先 (ピクチャフォルダの代わりに tmp/) に保存されて

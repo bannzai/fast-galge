@@ -1,10 +1,11 @@
-extends "res://scripts/dev/selfcheck_menu.gd"
+extends "res://scripts/dev/selfcheck_speed_and_endings.gd"
 ## 画面の遷移表、会話エンジンの計算 (表示時間・時間切れ・好感度・分岐・章の区切り・所要時間)、シナリオの形式、本編 (5 つの
 ## エンディングへの到達・各ルートの所要時間・共通パートの分岐・章の区切りの数)、GameState の会話の進行 (章の区切りでの
 ## オートセーブと「つづきから」の再開を含む) と結果の記録、結果の文面と X の投稿画面の URL の形、背景と立ち絵の
-## 決め方と素材、保存データの読み書きと壊れたデータの扱い、音量の保存と読み込みとバスへの反映、全シーンのロード、全素材が assets/CREDITS.md に記録され
-## クレジット画面の文に出ることと、クレジット画面の問い合わせ先が紹介ページと一致することの検証 (headless。設定と
-## クレジットの検証は継承元の scripts/dev/selfcheck_menu.gd)。
+## 決め方と素材、保存データの読み書きと壊れたデータの扱い、音量の保存と読み込みとバスへの反映、全シーンのロード、
+## 全素材が assets/CREDITS.md に記録されクレジット画面の文に出ることと、クレジット画面の問い合わせ先が紹介ページと
+## 一致することの検証 (headless。速さの倍率・ゆっくりモード・エンディング一覧の検証は継承元の
+## scripts/dev/selfcheck_speed_and_endings.gd、設定とクレジットの検証はその継承元の scripts/dev/selfcheck_menu.gd)。
 ## 実行方法は AGENTS.md を参照。release ビルドで assert が消えるため、明示的な判定と exit code で結果を返す。
 
 ## 起動検証 (main_scene の --quit) ではロードされない遷移先も含めた全シーン
@@ -270,6 +271,7 @@ func _initialize() -> void:
 	_check_scenario_format()
 	_check_main_scenario()
 	_check_game_state_conversation()
+	_check_speed_and_endings()
 	_check_stage()
 	_check_result_text()
 	_check_save_parse()
