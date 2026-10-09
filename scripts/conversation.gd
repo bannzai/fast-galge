@@ -90,6 +90,11 @@ static func affection_after(affection: Dictionary, changes: Dictionary) -> Dicti
 	return result
 
 
+## changes (ヒロインの ID ごとの好感度の変化) で、いずれかのヒロインの好感度が変わるか (0 だけなら変わらない)
+static func changes_affection(changes: Dictionary) -> bool:
+	return changes.values().any(func(amount: Variant) -> bool: return int(amount) != 0)
+
+
 ## affection が required (ヒロインの ID ごとの必要な好感度) をすべて満たすか
 static func meets(affection: Dictionary, required: Dictionary) -> bool:
 	for heroine: String in required:

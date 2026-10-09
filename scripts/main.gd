@@ -3,7 +3,8 @@ extends Control
 ## 表示を切り替え、毎フレーム会話の時間を進める。キー入力とタップ用のボタンを GameState の操作 (設定の音量は SaveData) に
 ## 写すだけで、会話の進行も音量も持たない (見た目の方向は documents/DIRECTION.md「デザインの方向」、背景と立ち絵の
 ## 決め方は scripts/stage.gd)。エンディングの画面では結果の画像 (SubViewport に置いた scenes/result_card.tscn の描画)
-## を出し、共有のボタンで画像の保存と X の投稿画面を開く操作を行う。
+## を出し、共有のボタンで画像の保存と X の投稿画面を開く操作を行う。場面に合わせて BGM を切り替え、GameState が
+## 知らせるきっかけで効果音を鳴らす (場面と BGM・きっかけと効果音の対応は scripts/sound.gd)。
 
 ## autoload の GameState のスクリプト。autoload 名の識別子で参照すると、--script で起動する scripts/dev/ の検証が
 ## autoload の登録前にこのスクリプトをコンパイルして失敗するため、ノードとして取る
@@ -20,6 +21,8 @@ const SaveDataScript := preload("res://scripts/save_data.gd")
 const CreditsScript := preload("res://scripts/credits.gd")
 ## 結果の文面と X の投稿画面の URL の組み立て、結果の画像のファイル名
 const ResultScript := preload("res://scripts/result.gd")
+## 場面ごとの BGM と効果音の素材
+const SoundScript := preload("res://scripts/sound.gd")
 ## 共有の操作の結果を知らせる文。デスクトップは画像の保存先と文面のコピー、それ以外 (iOS・Web) は画像がアプリの
 ## 保存領域にあることと写真に残す方法を案内する (プラグインなしの共有シートは無く、写真への保存は別 issue)
 const SHARE_SAVED_TEXT: String = "画像を保存しました: %s"
@@ -119,14 +122,25 @@ var pictures_dir_provider: Callable = func() -> String:
 @onready var endings_count_label: Label = $EndingsScreen/Count
 @onready var endings_label: Label = $EndingsScreen/Entries
 @onready var endings_close_button: Button = $EndingsScreen/CloseButton
+## 場面ごとの BGM を鳴らすノード (BGM バス)。効果音のノード (SE バス) は同じ Audio の下の、GameState の signal と
+## 同じ名前のノード
+@onready var bgm_player: AudioStreamPlayer = $Audio/Bgm
 
 
-## 起動の印を出し、場面で変わらない絵を置き、タップ用のボタンを GameState の操作・音量の変更・URL を開く処理に
-## つなぎ、クレジットの一覧を読み、GameState の画面に合わせた表示にする
+## 起動の印を出し、場面で変わらない絵を置き、効果音を GameState の signal につなぎ、タップ用のボタンを GameState の
+## 操作・音量の変更・URL を開く処理につなぎ、クレジットの一覧を読み、GameState の画面に合わせた表示にする
 func _ready() -> void:
 	print(BOOT_MESSAGE)
 	title_art.texture = load(StageScript.TITLE_PATH)
 	speed_lines.texture = load(StageScript.SPEED_LINES_PATH)
+	bgm_player.volume_db = SoundScript.BGM_VOLUME_DB
+	var game_state: Node = _game_state()
+	for event: String in SoundScript.EFFECTS:
+		var effect_player: AudioStreamPlayer = $Audio.get_node(event)
+		effect_player.stream = SoundScript.EFFECTS[event]
+		effect_player.volume_db = SoundScript.EFFECT_VOLUME_DB
+		if game_state != null:
+			game_state.connect(event, effect_player.play)
 	start_button.pressed.connect(_apply.bind(GameStateScript.Command.CONFIRM))
 	continue_button.pressed.connect(_apply.bind(GameStateScript.Command.CONTINUE))
 	endings_button.pressed.connect(_apply.bind(GameStateScript.Command.ENDINGS))
@@ -259,6 +273,9 @@ func _refresh() -> void:
 	settings_screen.visible = screen == GameStateScript.Screen.SETTINGS
 	credits_screen.visible = screen == GameStateScript.Screen.CREDITS
 	endings_screen.visible = screen == GameStateScript.Screen.ENDINGS
+	_refresh_bgm(
+		SoundScript.bgm_for(screen, game_state.scenario_path() if game_state != null else "")
+	)
 	if settings_screen.visible:
 		_refresh_volumes()
 	if title_screen.visible:
@@ -384,6 +401,17 @@ func _refresh_conversation(game_state: Node) -> void:
 			choice_buttons[option_index].text = (
 				"%d. %s" % [option_index + 1, options[option_index][ScenarioScript.TEXT]]
 			)
+
+
+## BGM を bgm (null なら止める) にする。毎フレーム呼ぶため、曲が変わった時だけ最初から鳴らし直し、同じ曲は途切れさせない
+func _refresh_bgm(bgm: AudioStream) -> void:
+	if bgm == null:
+		if bgm_player.playing:
+			bgm_player.stop()
+		return
+	if bgm_player.stream != bgm or not bgm_player.playing:
+		bgm_player.stream = bgm
+		bgm_player.play()
 
 
 ## texture_rect に path の素材を出し、path が空なら隠す。冪等で、毎フレーム呼んでも同じ素材を読み込み直さない

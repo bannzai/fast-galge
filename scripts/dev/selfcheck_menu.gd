@@ -1,7 +1,8 @@
 extends "res://scripts/dev/headless_check.gd"
 ## タイトルから開く設定とクレジットの検証 (画面の遷移、音量の段階とバスの音量、音量の保存データの解釈と保存・読み込み・
-## バスへの反映、クレジット画面の文の組み立てと問い合わせ先)。scripts/dev/selfcheck.gd が継承し、自分の検証と一緒に
-## 実行する (selfcheck.gd を 1 ファイルの行数の上限 (gdlintrc の max-file-lines) に収めるため分けている)。
+## バスへの反映、クレジット画面の文の組み立てと問い合わせ先)。scripts/dev/selfcheck_sound.gd を通して
+## scripts/dev/selfcheck.gd が継承し、自分の検証と一緒に実行する (selfcheck.gd を 1 ファイルの行数の上限 (gdlintrc の
+## max-file-lines) に収めるため分けている)。
 
 ## 画面と遷移表を持つ autoload のスクリプト
 const GAME_STATE_SCRIPT := preload("res://scripts/game_state.gd")

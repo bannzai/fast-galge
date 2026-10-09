@@ -15,9 +15,11 @@ WINDOWED_FLAGS := --audio-driver Dummy --rendering-driver opengl3 --resolution 1
 # 描画付き起動でだけ出る、描画に影響しない OS / ドライバ由来の行。ログの WARNING / ERROR 検査から除外する
 # (llvmpipe は V-Sync を設定できない WARNING を毎回 1 件出す。macOS は入力メソッドの mach port のエラーを稀に出す)
 WINDOWED_LOG_NOISE := -e 'Could not set V-Sync mode' -e 'IMKCFRunLoopWakeUpReliable'
-# movie target が録画するフレーム数 (30 fps 固定。300 = 10 秒)。タイトルを 1 秒映した後、本編の最初のメッセージが
+# movie target が録画するフレーム数 (MOVIE_FPS で 300 = 10 秒)。タイトルを 1 秒映した後、本編の最初のメッセージが
 # 10 個前後、操作なしで流れるところまで映る長さ。CI の録画時間と artifact のサイズを抑えるためこれ以上は伸ばさない
 MOVIE_FRAMES ?= 300
+# movie target の録画のフレームの速さ (fps)。文字送りの速さを目視できる滑らかさで、録画時間を抑える値
+MOVIE_FPS := 30
 
 # 引数のログ (target の標準出力・標準エラーの保存先と、--log-file の Godot 自身のログ) がすべて存在して空でなく、
 # 全文に WARNING / ERROR の行が無いことを検査する。Godot は診断を記録しても exit 0 で終わることがあるため、exit code
@@ -63,7 +65,7 @@ check: import
 
 # 画面の遷移表・会話エンジンの計算 (ゆっくりモードの速さの倍率を含む)・シナリオの形式と所要時間・オートセーブと再開・
 # ゆっくりモードの解放と進行・エンディング一覧の名前・保存データの読み書き・音量の保存と読み込みとバスへの反映・
-# 全シーンのロード・全素材の assets/CREDITS.md への記録とクレジット画面の文の検証 (headless)
+# 場面と BGM の対応と効果音・全シーンのロード・全素材の assets/CREDITS.md への記録とクレジット画面の文の検証 (headless)
 selfcheck: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --script res://scripts/dev/selfcheck.gd > $(LOG_DIR)/selfcheck.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/selfcheck.log; \
@@ -73,7 +75,8 @@ selfcheck: import
 
 # キー入力とマウスのクリックでメインシーンを動かす入力統合テスト (headless)。会話の自動送り・選択・時間切れ・
 # バックログの開閉・エンディングへの到達・オートセーブと「つづきから」の再開・エンディング一覧・ゆっくりモードでの
-# 手で送る進行と、表示の追従と、タイトルから開く設定 (音量の変更と保存) とクレジット (リンクを開く) を確認する。--fixed-fps で
+# 手で送る進行と、表示の追従と、タイトルから開く設定 (音量の変更と保存) とクレジット (リンクを開く) と、場面に合わせた
+# BGM と効果音を確認する。--fixed-fps で
 # 会話の時間を実時間から切り離し、本編 5 周 (5 つのエンディング。ルートに入る周は 1 周 約 5 分) を待たずに流す
 integration: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --fixed-fps 60 --script res://scripts/dev/integration.gd > $(LOG_DIR)/integration.log 2>&1; \
@@ -101,11 +104,13 @@ screenshot: import
 
 # 起動〜タイトル表示〜本編の文字送りを Movie Maker モードで録画して mp4 にする (起動直後の描画崩れ・真っ黒の検出と、
 # 文字送りの速さの目視のため。headless は dummy レンダラで落ちるため描画付きで起動する)。タイトルから本編を始める
-# 操作は scripts/dev/movie.gd が行う。真っ黒な動画を成功と誤認しないよう、終了 1 秒前のフレームの輝度平均
+# 操作は scripts/dev/movie.gd が行い、終了の少し前に BGM と効果音を止めて自分で終了する (鳴ったまま --quit-after で
+# 終わると再生がリークとして ERROR に出るため。--quit-after は止まらなかった時の打ち切り。フレーム数と速さは -- の後の
+# 引数で movie.gd に渡す)。真っ黒な動画を成功と誤認しないよう、終了 1 秒前のフレームの輝度平均
 # (Y。limited range のため真っ黒 = 16) が 32 以上であることも検査する
 movie: import
 	rm -f $(LOG_DIR)/movie.avi $(LOG_DIR)/movie.mp4
-	"$(GODOT)" $(ENGINE_LOG) --path . $(WINDOWED_FLAGS) --write-movie $(LOG_DIR)/movie.avi --fixed-fps 30 --quit-after $(MOVIE_FRAMES) --script res://scripts/dev/movie.gd > $(LOG_DIR)/movie.log 2>&1; \
+	"$(GODOT)" $(ENGINE_LOG) --path . $(WINDOWED_FLAGS) --write-movie $(LOG_DIR)/movie.avi --fixed-fps $(MOVIE_FPS) --quit-after $(MOVIE_FRAMES) --script res://scripts/dev/movie.gd -- --movie-frames=$(MOVIE_FRAMES) --movie-fps=$(MOVIE_FPS) > $(LOG_DIR)/movie.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/movie.log; \
 	tail -n 1 $(LOG_DIR)/movie.log | grep -q '^exit=0$$'
 	$(call check_clean_log,$(LOG_DIR)/movie.log $(LOG_DIR)/movie.godot.log)
