@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/result_card.tscn" id="2_result_card"]
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -68,7 +69,7 @@ offset_right = 630.0
 offset_bottom = 670.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 24
-text = "設定 [S]"
+text = "設定 [O]"
 
 [node name="CreditsButton" type="Button" parent="TitleScreen"]
 layout_mode = 0
@@ -247,46 +248,74 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Heading" type="Label" parent="EndingScreen"]
+[node name="ResultViewport" type="SubViewport" parent="EndingScreen"]
+disable_3d = true
+size = Vector2i(1200, 630)
+
+[node name="ResultCard" parent="EndingScreen/ResultViewport" instance=ExtResource("2_result_card")]
+
+[node name="ResultImage" type="TextureRect" parent="EndingScreen"]
 layout_mode = 0
-offset_top = 150.0
-offset_right = 1280.0
-offset_bottom = 200.0
-theme_override_colors/font_color = Color(1, 0.55, 0.3, 1)
-theme_override_font_sizes/font_size = 28
-text = "ENDING"
-horizontal_alignment = 1
-vertical_alignment = 1
+offset_left = 320.0
+offset_top = 36.0
+offset_right = 960.0
+offset_bottom = 372.0
+expand_mode = 1
+stretch_mode = 5
 
 [node name="Name" type="Label" parent="EndingScreen"]
 layout_mode = 0
-offset_top = 220.0
+offset_top = 380.0
 offset_right = 1280.0
-offset_bottom = 330.0
+offset_bottom = 430.0
 theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
-theme_override_font_sizes/font_size = 64
+theme_override_font_sizes/font_size = 34
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Summary" type="Label" parent="EndingScreen"]
 layout_mode = 0
-offset_top = 350.0
-offset_right = 1280.0
-offset_bottom = 460.0
+offset_left = 80.0
+offset_top = 432.0
+offset_right = 1200.0
+offset_bottom = 500.0
 theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
-vertical_alignment = 1
+vertical_alignment = 0
+autowrap_mode = 3
+
+[node name="ShareButton" type="Button" parent="EndingScreen"]
+layout_mode = 0
+offset_left = 240.0
+offset_top = 512.0
+offset_right = 620.0
+offset_bottom = 576.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 28
+text = "X で共有 [S]"
 
 [node name="TitleButton" type="Button" parent="EndingScreen"]
 layout_mode = 0
-offset_left = 440.0
-offset_top = 520.0
-offset_right = 840.0
-offset_bottom = 600.0
+offset_left = 660.0
+offset_top = 512.0
+offset_right = 1040.0
+offset_bottom = 576.0
 focus_mode = 0
-theme_override_font_sizes/font_size = 32
+theme_override_font_sizes/font_size = 28
 text = "タイトルへ [Enter]"
+
+[node name="ShareStatus" type="Label" parent="EndingScreen"]
+layout_mode = 0
+offset_left = 80.0
+offset_top = 584.0
+offset_right = 1200.0
+offset_bottom = 716.0
+theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+vertical_alignment = 0
+autowrap_mode = 3
 
 [node name="SettingsScreen" type="Control" parent="."]
 visible = false
@@ -419,7 +448,7 @@ offset_right = 780.0
 offset_bottom = 700.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 26
-text = "とじる [S]"
+text = "とじる [O]"
 
 [node name="CreditsScreen" type="Control" parent="."]
 visible = false

@@ -1,8 +1,74 @@
 extends "res://scripts/dev/headless_check.gd"
-## タイトルから開く設定とクレジットの検証 (音量の段階とバスの音量、音量の保存データの解釈と保存・読み込み・バスへの反映、
-## クレジット画面の文の組み立てと問い合わせ先)。scripts/dev/selfcheck.gd が継承し、自分の検証と一緒に実行する
-## (selfcheck.gd を 1 ファイルの行数の上限 (gdlintrc の max-file-lines) に収めるため分けている)。
+## タイトルから開く設定とクレジットの検証 (画面の遷移、音量の段階とバスの音量、音量の保存データの解釈と保存・読み込み・
+## バスへの反映、クレジット画面の文の組み立てと問い合わせ先)。scripts/dev/selfcheck.gd が継承し、自分の検証と一緒に
+## 実行する (selfcheck.gd を 1 ファイルの行数の上限 (gdlintrc の max-file-lines) に収めるため分けている)。
 
+## 画面と遷移表を持つ autoload のスクリプト
+const GAME_STATE_SCRIPT := preload("res://scripts/game_state.gd")
+## 設定とクレジットの画面の遷移の検証 (いまの画面・操作・移る先・説明)。どちらもタイトルからだけ開き、同じ操作か
+## 決定でタイトルに戻る
+const MENU_TRANSITION_CASES: Array[Array] = [
+	[
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		GAME_STATE_SCRIPT.Command.SETTINGS,
+		GAME_STATE_SCRIPT.Screen.SETTINGS,
+		"タイトルで設定を開ける",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.SETTINGS,
+		GAME_STATE_SCRIPT.Command.SETTINGS,
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		"設定をもう一度押すとタイトルに戻る",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.SETTINGS,
+		GAME_STATE_SCRIPT.Command.CONFIRM,
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		"設定で決定するとタイトルに戻る",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.SETTINGS,
+		GAME_STATE_SCRIPT.Command.CREDITS,
+		GAME_STATE_SCRIPT.Screen.SETTINGS,
+		"設定からクレジットへは移らない",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		GAME_STATE_SCRIPT.Command.CREDITS,
+		GAME_STATE_SCRIPT.Screen.CREDITS,
+		"タイトルでクレジットを開ける",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.CREDITS,
+		GAME_STATE_SCRIPT.Command.CREDITS,
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		"クレジットをもう一度押すとタイトルに戻る",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.CREDITS,
+		GAME_STATE_SCRIPT.Command.CONFIRM,
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		"クレジットで決定するとタイトルに戻る",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		GAME_STATE_SCRIPT.Command.SETTINGS,
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		"会話中は設定を開けない",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		GAME_STATE_SCRIPT.Command.CREDITS,
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		"会話中はクレジットを開けない",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.ENDING,
+		GAME_STATE_SCRIPT.Command.SETTINGS,
+		GAME_STATE_SCRIPT.Screen.ENDING,
+		"エンディングでは設定を開けない",
+	],
+]
 ## 保存データの autoload のスクリプト
 const SAVE_DATA_SCRIPT := preload("res://scripts/save_data.gd")
 ## クレジット画面に出す内容
@@ -43,6 +109,27 @@ const CREDITS_EMPTY: String = "| 素材 | 用途 |\n|---|---|\n"
 ## クレジット画面のサポートページとメールの宛先を載せている紹介ページと、サポート節の印
 const SUPPORT_PAGE_PATH: String = "res://docs/index.html"
 const SUPPORT_SECTION: String = 'id="support"'
+
+
+## 設定とクレジットの画面の遷移 (MENU_TRANSITION_CASES) と、GameState の実体でタイトルから開いても会話が始まらず、
+## 同じ操作でタイトルに戻ること
+func _check_menu_transitions() -> void:
+	for case: Array in MENU_TRANSITION_CASES:
+		var actual: GAME_STATE_SCRIPT.Screen = GAME_STATE_SCRIPT.next_screen(case[0], case[1])
+		_check(actual == case[2], "遷移: %s" % case[3])
+	for command: GAME_STATE_SCRIPT.Command in [
+		GAME_STATE_SCRIPT.Command.SETTINGS, GAME_STATE_SCRIPT.Command.CREDITS
+	]:
+		var opener: Node = GAME_STATE_SCRIPT.new()
+		_check(
+			opener.apply(command) and opener.lines.is_empty() and not opener.is_playing(),
+			"apply: タイトルで設定・クレジットを開いても会話は始まらない (%d)" % command
+		)
+		_check(
+			opener.apply(command) and opener.screen == GAME_STATE_SCRIPT.Screen.TITLE,
+			"apply: 設定・クレジットからタイトルに戻る (%d)" % command
+		)
+		opener.free()
 
 
 ## 音量の段階とバスの音量 (dB) の対応、バス (default_bus_layout.tres) があること、保存データの音量の解釈

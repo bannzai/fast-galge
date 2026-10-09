@@ -1,7 +1,9 @@
 extends Control
 ## メインシーン。GameState の画面に合わせてタイトル・会話・バックログ・エンディング・設定・クレジットの表示を
 ## 切り替え、毎フレーム会話の時間を進める。キー入力とタップ用のボタンを GameState の操作 (設定の音量は SaveData) に
-## 写すだけで、会話の進行も音量も持たない (見た目は仮の色面。関門 2 のデザインの反映で作り直す)。
+## 写すだけで、会話の進行も音量も持たない (見た目は仮の色面。関門 2 のデザインの反映で作り直す)。エンディングの画面
+## では結果の画像 (SubViewport に置いた scenes/result_card.tscn の描画) を出し、共有のボタンで画像の保存と X の
+## 投稿画面を開く操作を行う。
 
 ## autoload の GameState のスクリプト。autoload 名の識別子で参照すると、--script で起動する scripts/dev/ の検証が
 ## autoload の登録前にこのスクリプトをコンパイルして失敗するため、ノードとして取る
@@ -14,6 +16,21 @@ const ConversationScript := preload("res://scripts/conversation.gd")
 const SaveDataScript := preload("res://scripts/save_data.gd")
 ## クレジット画面に出す素材の出典と、開くリンクの URL
 const CreditsScript := preload("res://scripts/credits.gd")
+## 結果の文面と X の投稿画面の URL の組み立て、結果の画像のファイル名
+const ResultScript := preload("res://scripts/result.gd")
+## 共有の操作の結果を知らせる文。デスクトップは画像の保存先と文面のコピー、それ以外 (iOS・Web) は画像がアプリの
+## 保存領域にあることと写真に残す方法を案内する (プラグインなしの共有シートは無く、写真への保存は別 issue)
+const SHARE_SAVED_TEXT: String = "画像を保存しました: %s"
+const SHARE_SAVED_IN_APP_TEXT: String = "画像をアプリの保存領域に保存しました (この版では直接は取り出せません)"
+const SHARE_SAVE_FAILED_TEXT: String = "画像を保存できませんでした (%s)"
+const SHARE_COPIED_TEXT: String = "文面をコピーしました"
+const SHARE_PHOTO_HINT_TEXT: String = "写真に残すには この画面のスクリーンショットを撮ってください"
+const SHARE_OPENED_TEXT: String = "X の投稿画面を開きました"
+const SHARE_OPEN_FAILED_TEXT: String = "X の投稿画面を開けませんでした (%s)"
+## アプリの保存領域に置く結果の画像のパス (iOS・Web と、デスクトップでピクチャフォルダに書けない時)
+const USER_IMAGE_PATH: String = "user://" + ResultScript.IMAGE_FILE_NAME
+## 描画しない起動 (--headless) の DisplayServer の名前。結果の画像の保存は描画の完了を待てないため省く
+const HEADLESS_DISPLAY_SERVER: String = "headless"
 ## 入力のアクションと、GameState に送る操作
 const SCREEN_ACTIONS: Dictionary = {
 	"confirm": GameStateScript.Command.CONFIRM,
@@ -24,13 +41,19 @@ const SCREEN_ACTIONS: Dictionary = {
 }
 ## 選択肢を選ぶ入力のアクション (並び順が選択肢の番号)
 const CHOICE_ACTIONS: Array[String] = ["choice_1", "choice_2", "choice_3"]
+## エンディングの画面で共有する入力のアクション (キーボードでも共有できるように。project.godot の入力の share)
+const SHARE_ACTION: String = "share"
 
 ## 起動検証 (make check) が確認する起動の印
 const BOOT_MESSAGE: String = "fast-galge boot"
 
-## URL を開く処理 (引数は URL、戻り値は Error)。検証 (scripts/dev/integration.gd) がブラウザを開かずに、開こうとした
-## URL を記録する処理に差し替える
-var open_url: Callable = Callable(OS, "shell_open")
+## URL を開く関数 (共有の X の投稿画面と、クレジット画面のリンク)、文面をクリップボードに書く関数、デスクトップで
+## 画像を保存するフォルダを返す関数。既定は OS と DisplayServer のもので、検証 (scripts/dev/integration.gd・
+## screenshot.gd) が、runner でブラウザを開かず・開発者のフォルダに書かずに共有とリンクの流れを通すために差し替える
+var url_opener: Callable = Callable(OS, "shell_open")
+var clipboard_writer: Callable = Callable(DisplayServer, "clipboard_set")
+var pictures_dir_provider: Callable = func() -> String:
+	return OS.get_system_dir(OS.SYSTEM_DIR_PICTURES)
 
 ## タイトルの画面、会話を最初から始めるボタン、保存した章から再開するボタン (途中の保存がある間だけ出す)
 @onready var title_screen: Control = $TitleScreen
@@ -71,6 +94,12 @@ var open_url: Callable = Callable(OS, "shell_open")
 ## クレジットの画面と、素材の出典の一覧
 @onready var credits_screen: Control = $CreditsScreen
 @onready var credits_label: Label = $CreditsScreen/Scroll/Entries
+## 結果の画像を描く SubViewport とその中の結果のシーン、画像を画面に出す TextureRect、共有のボタン、共有の操作の結果
+@onready var result_viewport: SubViewport = $EndingScreen/ResultViewport
+@onready var result_card: Control = $EndingScreen/ResultViewport/ResultCard
+@onready var result_image: TextureRect = $EndingScreen/ResultImage
+@onready var share_button: Button = $EndingScreen/ShareButton
+@onready var share_status_label: Label = $EndingScreen/ShareStatus
 
 
 ## 起動の印を出し、タップ用のボタンを GameState の操作・音量の変更・URL を開く処理につなぎ、クレジットの一覧を読み、
@@ -82,6 +111,7 @@ func _ready() -> void:
 	backlog_button.pressed.connect(_apply.bind(GameStateScript.Command.BACKLOG))
 	close_button.pressed.connect(_apply.bind(GameStateScript.Command.BACKLOG))
 	title_button.pressed.connect(_apply.bind(GameStateScript.Command.CONFIRM))
+	share_button.pressed.connect(_share)
 	for option_index: int in range(choice_buttons.size()):
 		choice_buttons[option_index].pressed.connect(_choose.bind(option_index))
 	$TitleScreen/SettingsButton.pressed.connect(_apply.bind(GameStateScript.Command.SETTINGS))
@@ -98,6 +128,7 @@ func _ready() -> void:
 	$CreditsScreen/SupportButton.pressed.connect(_open.bind(CreditsScript.SUPPORT_URL))
 	$CreditsScreen/MailButton.pressed.connect(_open.bind(CreditsScript.MAIL_URL))
 	credits_label.text = CreditsScript.load_text()
+	result_image.texture = result_viewport.get_texture()
 	_refresh()
 
 
@@ -109,13 +140,17 @@ func _process(delta: float) -> void:
 	_refresh()
 
 
-## 入力のアクションを GameState の操作に写す
+## 入力のアクションを GameState の操作に写す。共有のアクションはエンディングの画面でだけ共有のボタンと同じ操作をする
 func _unhandled_input(event: InputEvent) -> void:
 	for action: String in SCREEN_ACTIONS:
 		if event.is_action_pressed(action):
 			_apply(SCREEN_ACTIONS[action])
 			get_viewport().set_input_as_handled()
 			return
+	if event.is_action_pressed(SHARE_ACTION) and ending_screen.visible:
+		_share()
+		get_viewport().set_input_as_handled()
+		return
 	for option_index: int in range(CHOICE_ACTIONS.size()):
 		if event.is_action_pressed(CHOICE_ACTIONS[option_index]):
 			_choose(option_index)
@@ -128,11 +163,13 @@ func _game_state() -> Node:
 	return get_tree().root.get_node_or_null("GameState")
 
 
-## command を GameState に送り、画面が移ったら表示を更新する。バックログを開いた時は一覧を最新の行まで送る
+## command を GameState に送り、画面が移ったら表示を更新する。バックログを開いた時は一覧を最新の行まで送る。
+## 画面が移ったら前の共有の操作の結果は消す
 func _apply(command: GameStateScript.Command) -> void:
 	var game_state: Node = _game_state()
 	if game_state == null or not game_state.apply(command):
 		return
+	share_status_label.text = ""
 	_refresh()
 	if game_state.screen == GameStateScript.Screen.BACKLOG:
 		_scroll_backlog_to_end()
@@ -159,9 +196,9 @@ func _change_volume(bus: String, step: int) -> void:
 	_refresh()
 
 
-## url を open_url で開く。開けなかった時はエラーを出す
+## url を url_opener で開く。開けなかった時はエラーを出す
 func _open(url: String) -> void:
-	var status: Error = open_url.call(url)
+	var status: Error = url_opener.call(url)
 	if status != OK:
 		push_error("URL を開けない: %s (%s)" % [url, error_string(status)])
 
@@ -189,6 +226,82 @@ func _refresh() -> void:
 	if ending_screen.visible:
 		ending_name_label.text = game_state.current_line().get(ScenarioScript.NAME, "")
 		ending_summary_label.text = game_state.current_line().get(ScenarioScript.SUMMARY, "")
+		result_card.show_result(game_state.result())
+
+
+## いまの結果を文面にして X の投稿画面を開く URL (共有のボタンが開く URL。検証が形を確かめるため副作用なし)
+func share_url() -> String:
+	var game_state: Node = _game_state()
+	var result: Dictionary = game_state.result() if game_state != null else {}
+	return ResultScript.share_url(ResultScript.share_text(result))
+
+
+## 結果の画像 (SubViewport の描画) を path に PNG で保存する。描画が反映されるまで 1 フレームと描画の完了を待つ。
+## headless (描画なし) では描画の完了が来ないため、1 フレーム待った後に ERR_UNAVAILABLE を返す。
+## 同じ path には同じ画像を上書きするため冪等
+func save_result_image(path: String) -> Error:
+	await get_tree().process_frame
+	if DisplayServer.get_name() == HEADLESS_DISPLAY_SERVER:
+		return ERR_UNAVAILABLE
+	await RenderingServer.frame_post_draw
+	var image: Image = result_viewport.get_texture().get_image()
+	if image == null or image.is_empty():
+		return ERR_UNAVAILABLE
+	return image.save_png(path)
+
+
+## 共有のボタンの操作。結果の画像を保存し (デスクトップはピクチャフォルダ。書けない時は user://)、デスクトップでは
+## 文面をクリップボードにコピーし、X の投稿画面を開く。保存とコピーの結果は投稿画面を開く前に表示に出す
+## (iOS は X に切り替わるため、戻る前に読めるように)。保存を待つ間はボタンを押せなくし、待つ間にエンディングの画面を
+## 離れたら投稿画面を開かず表示もしない。保存先・投稿画面の表示・クリップボードを書き換えるため冪等ではない
+func _share() -> void:
+	var game_state: Node = _game_state()
+	if game_state == null or share_button.disabled:
+		return
+	share_button.disabled = true
+	var text: String = ResultScript.share_text(game_state.result())
+	var on_desktop: bool = OS.has_feature("pc")
+	var image_path: String = _pictures_image_path() if on_desktop else USER_IMAGE_PATH
+	var saved: Error = await save_result_image(image_path)
+	if saved != OK and image_path != USER_IMAGE_PATH:
+		image_path = USER_IMAGE_PATH
+		saved = await save_result_image(image_path)
+	share_button.disabled = false
+	if game_state.screen != GameStateScript.Screen.ENDING:
+		return
+	var messages: PackedStringArray = []
+	if saved == OK and on_desktop:
+		messages.append(SHARE_SAVED_TEXT % ProjectSettings.globalize_path(image_path))
+	elif saved == OK:
+		messages.append(SHARE_SAVED_IN_APP_TEXT)
+	else:
+		messages.append(SHARE_SAVE_FAILED_TEXT % error_string(saved))
+	if on_desktop:
+		clipboard_writer.call(text)
+		messages.append(SHARE_COPIED_TEXT)
+	else:
+		messages.append(SHARE_PHOTO_HINT_TEXT)
+	share_status_label.text = "\n".join(messages)
+	var opened: Error = url_opener.call(ResultScript.share_url(text))
+	if opened == OK:
+		messages.append(SHARE_OPENED_TEXT)
+	else:
+		messages.append(SHARE_OPEN_FAILED_TEXT % error_string(opened))
+	share_status_label.text = "\n".join(messages)
+
+
+## デスクトップで結果の画像を保存するパス (pictures_dir_provider が返すユーザーのピクチャフォルダ)。フォルダが取れない時
+## (空、Linux で xdg-user-dir が失敗した時の "."、存在しないフォルダ) は user:// にして、書けないパスへの保存で
+## ERROR を出さない
+func _pictures_image_path() -> String:
+	var pictures_dir: String = pictures_dir_provider.call()
+	if (
+		pictures_dir.is_empty()
+		or pictures_dir == "."
+		or not DirAccess.dir_exists_absolute(pictures_dir)
+	):
+		return USER_IMAGE_PATH
+	return pictures_dir.path_join(ResultScript.IMAGE_FILE_NAME)
 
 
 ## 会話中の画面を game_state の会話の進行に合わせる。メッセージウィンドウにはバックログの最新の行 (いま流れている
