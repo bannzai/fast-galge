@@ -1,6 +1,7 @@
 extends RefCounted
 ## シナリオの保存形式 (scenario/*.json) の読み込みと検証。シナリオは行 (Dictionary) の配列で、行は次のどれか 1 種類。
-## - メッセージ: {"text": 本文, "speaker": 話者 (省くと地の文), "expression": 表情 (省ける)}
+## - メッセージ: {"text": 本文, "speaker": 話者 (省くと地の文), "expression": 表情 (省ける),
+##   "background": 背景 (省ける。場面の最初のメッセージに付け、次に付けたメッセージまで続く)}
 ## - 選択肢: {"choices": [{"text": 本文, "affection": {ヒロインの ID: 好感度の変化}, "goto": 分岐先のラベル}],
 ##   "timeout": 時間切れの分岐先のラベル, "speaker": 選ぶ人 (バックログに残す話者。省ける)}
 ## - ラベル: {"label": 名前}
@@ -15,6 +16,7 @@ extends RefCounted
 const TEXT: String = "text"
 const SPEAKER: String = "speaker"
 const EXPRESSION: String = "expression"
+const BACKGROUND: String = "background"
 const CHOICES: String = "choices"
 const AFFECTION: String = "affection"
 const GOTO: String = "goto"
@@ -26,7 +28,7 @@ const NAME: String = "name"
 const SUMMARY: String = "summary"
 ## 行の種類を決めるキーと、その種類の行が持てるキー
 const LINE_KEYS: Dictionary = {
-	TEXT: [TEXT, SPEAKER, EXPRESSION],
+	TEXT: [TEXT, SPEAKER, EXPRESSION, BACKGROUND],
 	CHOICES: [CHOICES, TIMEOUT, SPEAKER],
 	LABEL: [LABEL],
 	GOTO: [GOTO, IF_AFFECTION],
@@ -88,7 +90,7 @@ static func _line_errors(lines: Array, index: int) -> Array[String]:
 	var errors: Array[String] = _unknown_key_errors(line, LINE_KEYS[line_kind])
 	match line_kind:
 		TEXT:
-			errors.append_array(_text_errors(line, [TEXT], [SPEAKER, EXPRESSION]))
+			errors.append_array(_text_errors(line, [TEXT], [SPEAKER, EXPRESSION, BACKGROUND]))
 		CHOICES:
 			errors.append_array(_text_errors(line, [], [SPEAKER]))
 			errors.append_array(_choice_errors(lines, index))

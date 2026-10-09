@@ -1,5 +1,5 @@
 [
-  {"text": "放課後の教室。サンプルの会話が始まる。"},
+  {"background": "classroom", "text": "放課後の教室。サンプルの会話が始まる。"},
   {"speaker": "ヒナ", "expression": "smile", "text": "ねえ、ちょっといい？"},
   {"speaker": "ユウ", "text": "なに。"},
   {"speaker": "ヒナ", "expression": "shy", "text": "今日、一緒に帰らない？"},
