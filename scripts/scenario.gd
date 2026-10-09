@@ -5,6 +5,8 @@ extends RefCounted
 ##   "timeout": 時間切れの分岐先のラベル, "speaker": 選ぶ人 (バックログに残す話者。省ける)}
 ## - ラベル: {"label": 名前}
 ## - 移動: {"goto": ラベル, "if_affection": {ヒロインの ID: 必要な好感度}} (if_affection は省ける。あれば満たす時だけ移る)
+## - 章の区切り: {"chapter": ID}。会話がここを通るとオートセーブされ、タイトルの「つづきから」はこの次の行から再開する
+##   (scripts/save_data.gd)。ID は全ファイルで重複させない。表示はされず、所要時間にも数えない
 ## - エンディング: {"ending": ID, "name": エンディング名, "summary": 一言}
 ## 選択肢の goto と timeout は省くと次の行へ進む。ただし goto を持つ選択肢がある行は timeout を省けない (時間切れが、
 ## 次の行に置いた 1 つ目の分岐に流れ込むのを防ぐため)。時間切れで好感度が下がる相手は、その選択肢の affection に
@@ -21,6 +23,7 @@ const GOTO: String = "goto"
 const TIMEOUT: String = "timeout"
 const LABEL: String = "label"
 const IF_AFFECTION: String = "if_affection"
+const CHAPTER: String = "chapter"
 const ENDING: String = "ending"
 const NAME: String = "name"
 const SUMMARY: String = "summary"
@@ -30,6 +33,7 @@ const LINE_KEYS: Dictionary = {
 	CHOICES: [CHOICES, TIMEOUT, SPEAKER],
 	LABEL: [LABEL],
 	GOTO: [GOTO, IF_AFFECTION],
+	CHAPTER: [CHAPTER],
 	ENDING: [ENDING, NAME, SUMMARY],
 }
 ## 選択肢が持てるキー
@@ -60,10 +64,24 @@ static func kind(line: Dictionary) -> String:
 
 ## label (空でない名前) のラベルの行の位置。無ければ -1
 static func label_index(lines: Array, label: String) -> int:
-	for index: int in range(lines.size()):
-		if lines[index] is Dictionary and str(lines[index].get(LABEL, "")) == label:
-			return index
-	return -1
+	return _index_of(lines, LABEL, label)
+
+
+## chapter (空でない ID) の章の区切りの行の位置。無ければ -1
+static func chapter_index(lines: Array, chapter: String) -> int:
+	return _index_of(lines, CHAPTER, chapter)
+
+
+## value が {ヒロインの ID (空でない文字列): 整数} の辞書か (JSON の数は float で読まれるため、小数部が無いことを見る)。
+## シナリオの好感度の変化・条件と、保存データの好感度 (scripts/save_data.gd) が同じ形で使う
+static func is_affection(value: Variant) -> bool:
+	if not (value is Dictionary):
+		return false
+	for heroine: Variant in value:
+		var amount: Variant = value[heroine]
+		if not _is_text(heroine) or not (amount is float or amount is int) or amount != floorf(amount):
+			return false
+	return true
 
 
 ## lines の形式の誤りを、何番目の行かを付けた文で返す (空なら誤りなし)
@@ -98,8 +116,12 @@ static func _line_errors(lines: Array, index: int) -> Array[String]:
 				errors.append("label が重複している: %s" % [line[LABEL]])
 		GOTO:
 			errors.append_array(_target_errors(lines, index, line[GOTO]))
-			if not _is_affection(line.get(IF_AFFECTION, {})):
+			if not is_affection(line.get(IF_AFFECTION, {})):
 				errors.append("if_affection が {ヒロインの ID: 整数} ではない")
+		CHAPTER:
+			errors.append_array(_text_errors(line, [CHAPTER], []))
+			if chapter_index(lines, str(line[CHAPTER])) != index:
+				errors.append("chapter が重複している: %s" % [line[CHAPTER]])
 		ENDING:
 			errors.append_array(_text_errors(line, [ENDING, NAME, SUMMARY], []))
 	return errors
@@ -123,7 +145,7 @@ static func _choice_errors(lines: Array, index: int) -> Array[String]:
 		if option.has(GOTO):
 			has_goto = true
 			errors.append_array(_target_errors(lines, index, option[GOTO]))
-		if _is_affection(option.get(AFFECTION, {})):
+		if is_affection(option.get(AFFECTION, {})):
 			heroines.merge(option.get(AFFECTION, {}))
 		else:
 			errors.append("選択肢の affection が {ヒロインの ID: 整数} ではない")
@@ -171,12 +193,9 @@ static func _is_text(value: Variant) -> bool:
 	return value is String and not value.is_empty()
 
 
-## value が {ヒロインの ID (空でない文字列): 整数} の辞書か (JSON の数は float で読まれるため、小数部が無いことを見る)
-static func _is_affection(value: Variant) -> bool:
-	if not (value is Dictionary):
-		return false
-	for heroine: Variant in value:
-		var amount: Variant = value[heroine]
-		if not _is_text(heroine) or not (amount is float or amount is int) or amount != floorf(amount):
-			return false
-	return true
+## lines のうち key の値が name (空でない文字列) の行の位置。無ければ -1
+static func _index_of(lines: Array, key: String, name: String) -> int:
+	for index: int in range(lines.size()):
+		if lines[index] is Dictionary and str(lines[index].get(key, "")) == name:
+			return index
+	return -1

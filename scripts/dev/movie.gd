@@ -13,6 +13,7 @@ func _initialize() -> void:
 
 ## 物理フレームを進めながら入力を流すため、同じ実行中に重ねて呼び出さない
 func _run() -> void:
+	_isolate_save("movie")
 	_add_main()
 	await create_timer(TITLE_SHOW_TIME).timeout
 	await _hold_keys([KEY_ENTER], 1)
