@@ -1,5 +1,6 @@
 [
   {"label": "route_hina"},
+  {"chapter": "route_hina_spring"},
   {"background": "broadcast_room", "text": "放課後の放送室。機材と原稿の山と、ヒナの声でいっぱいの六畳間だ。"},
   {"speaker": "ヒナ", "expression": "smile", "text": "ようこそ放送部へ！部員は私とユウ！部長は私！副部長も私！"},
   {"speaker": "ユウ", "text": "僕の役職は。"},
@@ -188,6 +189,7 @@
   {"speaker": "ヒナ", "expression": "sad", "text": "……ごめん。私のせいで徳川家康がマイナス二エックスに。"},
   {"speaker": "ユウ", "text": "いいよ。消しゴムはゆっくり使うものだから。"},
   {"text": "その夜、彼女は初めて、僕が書き終わるのを黙って待っていた。五分だけ。"},
+  {"chapter": "route_hina_autumn"},
   {"background": "shrine", "text": "九月の終わり。修学旅行は京都、二泊三日。体感では四十秒だった。"},
   {"speaker": "ヒナ", "expression": "smile", "text": "金閣寺！金色！はい撮った！次、清水寺！高い！はい撮った！"},
   {"speaker": "ユウ", "text": "ヒナ、写真が全部ぶれてる。"},

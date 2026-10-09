@@ -20,6 +20,7 @@
   {"label": "sample_silent"},
   {"speaker": "ヒナ", "expression": "angry", "text": "無視！？二秒も！？"},
   {"label": "sample_after"},
+  {"chapter": "sample_after"},
   {"text": "チャイムが鳴った。"},
   {"goto": "sample_good", "if_affection": {"hina": 1}},
   {"speaker": "ユウ", "text": "ひとりで帰った。"},
