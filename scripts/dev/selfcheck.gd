@@ -1,7 +1,7 @@
 extends "res://scripts/dev/headless_check.gd"
-## 画面の遷移表、会話エンジンの計算 (表示時間・時間切れ・好感度・分岐・所要時間)、シナリオの形式、GameState の会話の進行と
-## 結果の記録、結果の文面と X の投稿画面の URL の形、全シーンのロード、全素材が assets/CREDITS.md に記録されていることの
-## 検証 (headless)。
+## 画面の遷移表、会話エンジンの計算 (表示時間・時間切れ・好感度・分岐・所要時間)、シナリオの形式、本編 (5 つのエンディングへの
+## 到達・各ルートの所要時間・共通パートの分岐)、GameState の会話の進行と結果の記録、結果の文面と X の投稿画面の URL の形、
+## 全シーンのロード、全素材が assets/CREDITS.md に記録されていることの検証 (headless)。
 ## 実行方法は AGENTS.md を参照。release ビルドで assert が消えるため、明示的な判定と exit code で結果を返す。
 
 ## 起動検証 (main_scene の --quit) ではロードされない遷移先も含めた全シーン
@@ -154,16 +154,31 @@ const INVALID_SCENARIOS: Array[Array] = [
 	],
 	[[{"ending": "end"}], "エンディング名と一言が無い"],
 ]
-## 本編 (共通パート + 1 人目のヒロインのルート) の所要時間の範囲 (秒)。共通パート 1 分 + ルート 5 分前後
+## 本編のルートに入る周 (共通パート + どちらかのヒロインのルート) の所要時間の範囲 (秒)。共通パート 1 分 + ルート 5 分前後
 ## (documents/PROJECT.md「登場人物とシナリオの規模」) に対し、4〜7 分に収める
 const MAIN_MIN_SECONDS: float = 240.0
 const MAIN_MAX_SECONDS: float = 420.0
-## 本編に置く選択肢の数の範囲 (共通パートと 1 人目のヒロインのルートで 3〜5 箇所)
-const MAIN_MIN_CHOICES: int = 3
-const MAIN_MAX_CHOICES: int = 5
-## 本編の good / bad のエンディングの ID
-const GOOD_ENDING: String = "hina_good"
-const BAD_ENDING: String = "hina_bad"
+## 共通 bad に着く周 (共通パート + 共通 bad エンディング) の所要時間の範囲 (秒)。共通パート 1 分前後とエンディングの
+## 数行で、ルートに入る周の下限より短く終わる
+const COMMON_BAD_MIN_SECONDS: float = 45.0
+const COMMON_BAD_MAX_SECONDS: float = 150.0
+## ルートに入る周で通る選択肢の数の範囲 (共通パートの 2 箇所 + ルートの 2〜5 箇所)
+const MAIN_MIN_CHOICES: int = 4
+const MAIN_MAX_CHOICES: int = 7
+## ルートに入るのに要るヒロインの好感度 (scenario/common.json の最後の移動の if_affection)。共通パートの選択肢は
+## 一方を上げると他方を下げるため、この値を満たすヒロインは相手より厳密に高く、2 人同時には満たさない
+const ROUTE_MIN_AFFECTION: int = 1
+## 共通パートの分岐の検証で、共通パートの後ろに置くルートと共通 bad の代わりの行 (ラベルは scenario/common.json の
+## 移動先と同じ名前)。エンディングの ID (ルートはヒロインの ID、共通 bad は COMMON_BAD) で、どこへ移ったかを見る
+const COMMON_BAD: String = "common_bad"
+const ROUTE_STUB_LINES: Array = [
+	{"label": "route_hina"},
+	{"ending": "hina", "name": "hina", "summary": "hina"},
+	{"label": "route_nagi"},
+	{"ending": "nagi", "name": "nagi", "summary": "nagi"},
+	{"label": COMMON_BAD},
+	{"ending": COMMON_BAD, "name": COMMON_BAD, "summary": COMMON_BAD},
+]
 ## 所要時間の表記の検証 (秒・期待する表記)。秒は切り捨て
 const FORMAT_SECONDS_CASES: Array[Array] = [
 	[0.0, "0分00秒"],
@@ -319,65 +334,144 @@ func _check_scenario_valid(paths: Array[String]) -> void:
 	_check(errors.is_empty(), "シナリオの形式: %s %s" % [paths, errors])
 
 
-## 本編の検証。好感度を上げる選択で good、下げる選択・時間切れで bad に着き、どの進め方でも所要時間が範囲に収まり、
-## 選択肢の数が範囲に収まること
+## 本編の検証。MAIN_ENDING_CASES の 5 つの進め方がそれぞれのエンディングに着き、ルートに入る周は所要時間と通る選択肢の
+## 数が範囲に収まり、共通 bad に着く周は短い範囲に収まること。共通パートの分岐の検証は _check_route_split
 func _check_main_scenario() -> void:
 	var lines: Array = ScenarioScript.load_lines(GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS)
-	var time_out: Callable = func(_choice: Dictionary) -> int: return ConversationScript.TIMEOUT
-	var cases: Array[Array] = [
-		[_option_by_affection.bind(1), GOOD_ENDING, "好感度を上げる選択"],
-		[_option_by_affection.bind(-1), BAD_ENDING, "好感度を下げる選択"],
-		[time_out, BAD_ENDING, "時間切れ"],
-	]
-	for case: Array in cases:
-		var result: Dictionary = ConversationScript.playthrough(lines, case[0])
+	for case: Array in MAIN_ENDING_CASES:
+		var picked: Array[int] = []
+		var pick: Callable = func(choice: Dictionary) -> int:
+			picked.append(_pick_for_case(case, lines, lines.find(choice)))
+			return picked.back()
+		var result: Dictionary = ConversationScript.playthrough(lines, pick)
 		_check(
-			result["ending"].get("ending") == case[1],
-			"本編: %s で %s に着く (好感度 %s)" % [case[2], case[1], result["affection"]]
+			result["ending"].get(ScenarioScript.ENDING) == case[0],
+			"本編: %s への進め方で着く (好感度 %s)" % [case[0], result["affection"]]
 		)
+		var min_seconds: float = MAIN_MIN_SECONDS if case[0] != COMMON_BAD else COMMON_BAD_MIN_SECONDS
+		var max_seconds: float = MAIN_MAX_SECONDS if case[0] != COMMON_BAD else COMMON_BAD_MAX_SECONDS
 		_check(
-			result["seconds"] >= MAIN_MIN_SECONDS and result["seconds"] <= MAIN_MAX_SECONDS,
+			result["seconds"] >= min_seconds and result["seconds"] <= max_seconds,
 			(
 				"本編: %s の所要時間が %.0f〜%.0f 秒に収まる (%.1f 秒)"
-				% [case[2], MAIN_MIN_SECONDS, MAIN_MAX_SECONDS, result["seconds"]]
+				% [case[0], min_seconds, max_seconds, result["seconds"]]
 			)
 		)
-	var choices: int = lines.filter(
-		func(line: Dictionary) -> bool: return line.has(ScenarioScript.CHOICES)
-	).size()
-	_check(
-		choices >= MAIN_MIN_CHOICES and choices <= MAIN_MAX_CHOICES,
-		"本編: 選択肢が %d〜%d 箇所 (%d 箇所)" % [MAIN_MIN_CHOICES, MAIN_MAX_CHOICES, choices]
-	)
-	_check_main_progress(ConversationScript.playthrough(lines, time_out))
+		if case[0] != COMMON_BAD:
+			_check(
+				picked.size() >= MAIN_MIN_CHOICES and picked.size() <= MAIN_MAX_CHOICES,
+				(
+					"本編: %s で通る選択肢が %d〜%d 箇所 (%d 箇所)"
+					% [case[0], MAIN_MIN_CHOICES, MAIN_MAX_CHOICES, picked.size()]
+				)
+			)
+		_check_main_progress(
+			case,
+			lines,
+			result,
+			picked.filter(func(pick: int) -> bool: return pick != ConversationScript.TIMEOUT).size()
+		)
+	_check_route_split(ScenarioScript.load_lines([GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS[0]]))
 
 
-## 本編を GameState で操作せずに最後まで進めた時の所要時間・好感度・エンディングが、expected (同じ進め方の
-## playthrough の結果) と一致すること。所要時間の見積もりが実際の会話の進み方とずれていないことを確かめる
-func _check_main_progress(expected: Dictionary) -> void:
+## 本編を GameState で case の進め方 (選択肢が出たらすぐ選ぶ) で最後まで進めた時の所要時間・好感度・エンディングが、
+## expected (同じ進め方の playthrough の結果) と一致すること。playthrough は選択肢ごとに制限時間を丸ごと数え、GameState は
+## 選んだ時点で次へ進むため、所要時間は選んだ (時間切れでない) 選択肢の数 (choices) × 制限時間を引いて比べる。
+## 所要時間の見積もりが実際の会話の進み方とずれていないことを確かめる
+func _check_main_progress(case: Array, lines: Array, expected: Dictionary, choices: int) -> void:
 	var game_state: Node = GAME_STATE_SCRIPT.new()
 	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
 	var stepped: float = 0.0
 	while game_state.is_playing():
-		game_state.advance(FAST_FORWARD_STEP)
-		stepped += FAST_FORWARD_STEP
+		var pick: int = (
+			_pick_for_case(case, lines, game_state.position)
+			if _is_choosing(game_state)
+			else ConversationScript.TIMEOUT
+		)
+		if pick != ConversationScript.TIMEOUT:
+			game_state.choose(pick)
+		else:
+			game_state.advance(FAST_FORWARD_STEP)
+			stepped += FAST_FORWARD_STEP
+	var expected_seconds: float = expected["seconds"] - choices * ConversationScript.CHOICE_SECONDS
 	_check(
-		absf(stepped - expected["seconds"]) <= FAST_FORWARD_STEP + 0.001,
+		absf(stepped - expected_seconds) <= FAST_FORWARD_STEP * (choices + 1) + 0.001,
 		(
-			"本編: GameState で進めた所要時間が見積もりと一致する (%.2f 秒 / 見積もり %.2f 秒)"
-			% [stepped, expected["seconds"]]
+			"本編: %s を GameState で進めた所要時間が見積もりと一致する (%.2f 秒 / 見積もり %.2f 秒)"
+			% [case[0], stepped, expected_seconds]
 		)
 	)
-	_check(game_state.affection == expected["affection"], "本編: GameState で進めた好感度が見積もりと一致する")
+	_check(
+		game_state.affection == expected["affection"],
+		"本編: %s を GameState で進めた好感度が見積もりと一致する" % case[0]
+	)
 	_check(
 		game_state.current_line() == expected["ending"],
-		"本編: GameState で進めたエンディングが見積もりと一致する"
+		"本編: %s を GameState で進めたエンディングが見積もりと一致する" % case[0]
 	)
 	_check(
 		is_equal_approx(game_state.play_seconds, stepped),
-		"本編: 結果の所要時間が会話中に進めた時間と一致する (%.2f 秒)" % game_state.play_seconds
+		(
+			"本編: %s を GameState で進めた結果の所要時間が、会話中に進めた時間と一致する (%.2f 秒)"
+			% [case[0], game_state.play_seconds]
+		)
+	)
+	_check(
+		game_state.choice_count == choices,
+		"本編: %s を GameState で進めた結果の選んだ選択肢の数が %d" % [case[0], choices]
 	)
 	game_state.free()
+
+
+## 共通パート (common_lines) の分岐の検証。選択肢の選び方 (時間切れを含む) の全組み合わせで、共通パートの最後の移動が
+## 「好感度が相手より厳密に高く ROUTE_MIN_AFFECTION 以上のヒロインのルート、いなければ共通 bad」に着くこと
+## (documents/PROJECT.md「基本ルール」のルートの分かれ方)
+func _check_route_split(common_lines: Array) -> void:
+	var lines: Array = common_lines + ROUTE_STUB_LINES
+	var choices: Array = lines.filter(
+		func(line: Dictionary) -> bool: return line.has(ScenarioScript.CHOICES)
+	)
+	for picks: Array in _pick_combinations(choices):
+		var picked: Array[int] = []
+		var pick: Callable = func(_choice: Dictionary) -> int:
+			picked.append(picks[picked.size()])
+			return picked.back()
+		var result: Dictionary = ConversationScript.playthrough(lines, pick)
+		_check(
+			result["ending"].get(ScenarioScript.ENDING) == _route_for(result["affection"]),
+			(
+				"共通パートの分岐: 選び方 %s (好感度 %s) で %s に移る (実際は %s)"
+				% [picks, result["affection"], _route_for(result["affection"]), result["ending"]]
+			)
+		)
+
+
+## affection (ヒロインの ID ごとの好感度) で入るルートのヒロインの ID。相手より厳密に高く ROUTE_MIN_AFFECTION 以上の
+## ヒロインがいなければ COMMON_BAD
+func _route_for(affection: Dictionary) -> String:
+	var route: String = COMMON_BAD
+	var highest: int = ROUTE_MIN_AFFECTION - 1
+	for heroine: String in ROUTE_LABELS:
+		var value: int = int(affection.get(heroine, 0))
+		if value > highest:
+			route = heroine
+			highest = value
+		elif value == highest:
+			route = COMMON_BAD
+	return route
+
+
+## choices (選択肢の行の配列) を順に選ぶ番号の全組み合わせ (各行は 0〜選択肢の数 - 1 と時間切れ)
+func _pick_combinations(choices: Array) -> Array:
+	var combinations: Array = [[]]
+	for choice: Dictionary in choices:
+		var picks: Array = range(choice[ScenarioScript.CHOICES].size()) + [ConversationScript.TIMEOUT]
+		var extended: Array = []
+		for combination: Array in combinations:
+			for pick: int in picks:
+				extended.append(combination + [pick])
+		combinations = extended
+	return combinations
 
 
 ## GameState の会話の進行の検証 (サンプルシナリオ)。自動送り・バックログの間の停止・選択・時間切れ・エンディングの記録・
