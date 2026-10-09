@@ -1,9 +1,9 @@
 extends Control
-## メインシーン。GameState の画面に合わせてタイトル・会話・バックログ・エンディングの表示を切り替え、毎フレーム
-## 会話の時間を進める。キー入力とタップ用のボタンを GameState の操作に写すだけで、会話の進行は持たない
-## (見た目の方向は documents/DIRECTION.md「デザインの方向」、背景と立ち絵の決め方は scripts/stage.gd)。エンディングの
-## 画面では結果の画像 (SubViewport に置いた scenes/result_card.tscn の描画) を出し、共有のボタンで画像の保存と X の
-## 投稿画面を開く操作を行う。
+## メインシーン。GameState の画面に合わせてタイトル・会話・バックログ・エンディング・設定・クレジットの表示を
+## 切り替え、毎フレーム会話の時間を進める。キー入力とタップ用のボタンを GameState の操作 (設定の音量は SaveData) に
+## 写すだけで、会話の進行も音量も持たない (見た目の方向は documents/DIRECTION.md「デザインの方向」、背景と立ち絵の
+## 決め方は scripts/stage.gd)。エンディングの画面では結果の画像 (SubViewport に置いた scenes/result_card.tscn の描画)
+## を出し、共有のボタンで画像の保存と X の投稿画面を開く操作を行う。
 
 ## autoload の GameState のスクリプト。autoload 名の識別子で参照すると、--script で起動する scripts/dev/ の検証が
 ## autoload の登録前にこのスクリプトをコンパイルして失敗するため、ノードとして取る
@@ -14,6 +14,10 @@ const ScenarioScript := preload("res://scripts/scenario.gd")
 const ConversationScript := preload("res://scripts/conversation.gd")
 ## 背景と立ち絵の素材と、いま出すものの決め方
 const StageScript := preload("res://scripts/stage.gd")
+## 音量のバスと段階 (autoload の SaveData のスクリプト。GameState と同じ理由でノードとして取る)
+const SaveDataScript := preload("res://scripts/save_data.gd")
+## クレジット画面に出す素材の出典と、開くリンクの URL
+const CreditsScript := preload("res://scripts/credits.gd")
 ## 結果の文面と X の投稿画面の URL の組み立て、結果の画像のファイル名
 const ResultScript := preload("res://scripts/result.gd")
 ## 共有の操作の結果を知らせる文。デスクトップは画像の保存先と文面のコピー、それ以外 (iOS・Web) は画像がアプリの
@@ -34,6 +38,8 @@ const SCREEN_ACTIONS: Dictionary = {
 	"confirm": GameStateScript.Command.CONFIRM,
 	"backlog": GameStateScript.Command.BACKLOG,
 	"continue": GameStateScript.Command.CONTINUE,
+	"settings": GameStateScript.Command.SETTINGS,
+	"credits": GameStateScript.Command.CREDITS,
 }
 ## 選択肢を選ぶ入力のアクション (並び順が選択肢の番号)
 const CHOICE_ACTIONS: Array[String] = ["choice_1", "choice_2", "choice_3"]
@@ -43,9 +49,9 @@ const SHARE_ACTION: String = "share"
 ## 起動検証 (make check) が確認する起動の印
 const BOOT_MESSAGE: String = "fast-galge boot"
 
-## 共有で X の投稿画面の URL を開く関数、文面をクリップボードに書く関数、デスクトップで画像を保存するフォルダを返す
-## 関数。既定は OS と DisplayServer のもので、検証 (scripts/dev/integration.gd・screenshot.gd) が、runner でブラウザを
-## 開かず・開発者のフォルダに書かずに共有の流れを通すために差し替える
+## URL を開く関数 (共有の X の投稿画面と、クレジット画面のリンク)、文面をクリップボードに書く関数、デスクトップで
+## 画像を保存するフォルダを返す関数。既定は OS と DisplayServer のもので、検証 (scripts/dev/integration.gd・
+## screenshot.gd) が、runner でブラウザを開かず・開発者のフォルダに書かずに共有とリンクの流れを通すために差し替える
 var url_opener: Callable = Callable(OS, "shell_open")
 var clipboard_writer: Callable = Callable(DisplayServer, "clipboard_set")
 var pictures_dir_provider: Callable = func() -> String:
@@ -86,6 +92,13 @@ var pictures_dir_provider: Callable = func() -> String:
 @onready var ending_name_label: Label = $EndingScreen/Name
 @onready var ending_summary_label: Label = $EndingScreen/Summary
 @onready var title_button: Button = $EndingScreen/TitleButton
+## 設定の画面と、バスの名前 (SaveDataScript.VOLUME_BUSES) ごとの音量の行 (下げるボタン Down・段階のバー Level・
+## 上げるボタン Up を持つ。ノード名がバスの名前) を並べる親
+@onready var settings_screen: Control = $SettingsScreen
+@onready var volume_rows: Control = $SettingsScreen/Volumes
+## クレジットの画面と、素材の出典の一覧
+@onready var credits_screen: Control = $CreditsScreen
+@onready var credits_label: Label = $CreditsScreen/Scroll/Entries
 ## 結果の画像を描く SubViewport とその中の結果のシーン、画像を画面に出す TextureRect、共有のボタン、共有の操作の結果
 @onready var result_viewport: SubViewport = $EndingScreen/ResultViewport
 @onready var result_card: Control = $EndingScreen/ResultViewport/ResultCard
@@ -94,8 +107,8 @@ var pictures_dir_provider: Callable = func() -> String:
 @onready var share_status_label: Label = $EndingScreen/ShareStatus
 
 
-## 起動の印を出し、場面で変わらない絵を置き、タップ用のボタンを GameState の操作につなぎ、GameState の画面に合わせた
-## 表示にする
+## 起動の印を出し、場面で変わらない絵を置き、タップ用のボタンを GameState の操作・音量の変更・URL を開く処理に
+## つなぎ、クレジットの一覧を読み、GameState の画面に合わせた表示にする
 func _ready() -> void:
 	print(BOOT_MESSAGE)
 	title_art.texture = load(StageScript.TITLE_PATH)
@@ -108,6 +121,20 @@ func _ready() -> void:
 	share_button.pressed.connect(_share)
 	for option_index: int in range(choice_buttons.size()):
 		choice_buttons[option_index].pressed.connect(_choose.bind(option_index))
+	$TitleScreen/SettingsButton.pressed.connect(_apply.bind(GameStateScript.Command.SETTINGS))
+	$SettingsScreen/CloseButton.pressed.connect(_apply.bind(GameStateScript.Command.SETTINGS))
+	for bus: String in SaveDataScript.VOLUME_BUSES:
+		var row: Control = volume_rows.get_node(bus)
+		row.get_node("Down").pressed.connect(_change_volume.bind(bus, -1))
+		row.get_node("Up").pressed.connect(_change_volume.bind(bus, 1))
+		row.get_node("Level").max_value = SaveDataScript.MAX_VOLUME
+	$TitleScreen/CreditsButton.pressed.connect(_apply.bind(GameStateScript.Command.CREDITS))
+	$CreditsScreen/CloseButton.pressed.connect(_apply.bind(GameStateScript.Command.CREDITS))
+	$CreditsScreen/TermsButton.pressed.connect(_open.bind(CreditsScript.TERMS_URL))
+	$CreditsScreen/PrivacyButton.pressed.connect(_open.bind(CreditsScript.PRIVACY_URL))
+	$CreditsScreen/SupportButton.pressed.connect(_open.bind(CreditsScript.SUPPORT_URL))
+	$CreditsScreen/MailButton.pressed.connect(_open.bind(CreditsScript.MAIL_URL))
+	credits_label.text = CreditsScript.load_text()
 	result_image.texture = result_viewport.get_texture()
 	_refresh()
 
@@ -162,6 +189,27 @@ func _choose(option_index: int) -> void:
 		_refresh()
 
 
+## autoload の SaveData。登録されていない起動 (シーン単体の読み込み) では null
+func _save_data() -> Node:
+	return get_tree().root.get_node_or_null("SaveData")
+
+
+## bus のバスの音量を step 段だけ変えて (SaveData が保存とバスへの反映をする)、表示を更新する
+func _change_volume(bus: String, step: int) -> void:
+	var save_data: Node = _save_data()
+	if save_data == null:
+		return
+	save_data.set_volume(bus, save_data.volumes[bus] + step)
+	_refresh()
+
+
+## url を url_opener で開く。開けなかった時はエラーを出す
+func _open(url: String) -> void:
+	var status: Error = url_opener.call(url)
+	if status != OK:
+		push_error("URL を開けない: %s (%s)" % [url, error_string(status)])
+
+
 ## GameState の画面に合わせて、画面ごとの表示を切り替えて中身を更新する
 func _refresh() -> void:
 	var game_state: Node = _game_state()
@@ -172,6 +220,10 @@ func _refresh() -> void:
 	conversation_screen.visible = screen == GameStateScript.Screen.PLAYING
 	backlog_screen.visible = screen == GameStateScript.Screen.BACKLOG
 	ending_screen.visible = screen == GameStateScript.Screen.ENDING
+	settings_screen.visible = screen == GameStateScript.Screen.SETTINGS
+	credits_screen.visible = screen == GameStateScript.Screen.CREDITS
+	if settings_screen.visible:
+		_refresh_volumes()
 	if title_screen.visible:
 		continue_button.visible = game_state != null and game_state.can_continue()
 	if conversation_screen.visible:
@@ -297,6 +349,15 @@ func _show_texture(texture_rect: TextureRect, path: String) -> void:
 		texture_rect.texture == null or texture_rect.texture.resource_path != path
 	):
 		texture_rect.texture = load(path)
+
+
+## 設定の画面の音量の行を、SaveData が持つバスごとの音量の段階に合わせる
+func _refresh_volumes() -> void:
+	var save_data: Node = _save_data()
+	if save_data == null:
+		return
+	for bus: String in SaveDataScript.VOLUME_BUSES:
+		volume_rows.get_node(bus).get_node("Level").value = save_data.volumes[bus]
 
 
 ## バックログの 1 行 (entry) を一覧に出す文にする。話者がいれば「」で囲み、地の文はそのまま出す
