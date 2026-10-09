@@ -4,6 +4,16 @@ extends Node
 ## 時間切れの回数) を持つ。
 ## 画面をまたいで参照する値はここに集める (UI ノードに状態を持たせない)。会話のルールの計算は scripts/conversation.gd。
 ## 章の区切りでのオートセーブと到達したエンディングの記録は SaveData (scripts/save_data.gd) に書く。
+## 効果音を鳴らすきっかけを signal で知らせる (鳴らすのはメインシーン。signal と素材の対応は scripts/sound.gd)。
+
+## 会話がメッセージの行に着いた (文字送り)
+signal message_entered
+## 会話が選択肢の行に着いた (選択肢の表示)
+signal choice_entered
+## 選択肢が時間切れになった
+signal timed_out
+## プレイヤーが選んだ選択肢で好感度が変わった (変化が 0 だけの選択肢と、時間切れでは知らせない)
+signal affection_changed
 
 ## 表示している画面。会話が進むのは PLAYING の間だけで、BACKLOG を開いている間は止まる。SETTINGS と CREDITS は
 ## タイトルから開く
@@ -48,6 +58,10 @@ var screen: Screen = Screen.TITLE
 var scenario_paths: Array[String] = MAIN_SCENARIO_PATHS
 ## 再生しているシナリオの行 (形式は scripts/scenario.gd)。JSON を読んだままの配列のため、要素の型は持たない
 var lines: Array = []
+## lines を読んだシナリオのファイル (読んだ順) と、各ファイルの最初の行の lines の中の位置。場面の BGM を決める
+## (scenario_path())。scenario_paths は検証が読んだ後に差し替えるため、読んだ時点の並びを持つ
+var loaded_paths: Array[String] = []
+var loaded_starts: Array[int] = []
 ## いま表示が止まっている行 (メッセージ・選択肢・エンディング) の、lines の中の位置
 var position: int = 0
 ## position の行で表示が止まってからの経過時間 (秒)
@@ -113,6 +127,14 @@ func current_line() -> Dictionary:
 	return lines[position] if position < lines.size() else {}
 
 
+## いま表示が止まっている行 (行が尽きた時は最後の行) を読んだシナリオのファイル。シナリオを始めていない時は ""
+func scenario_path() -> String:
+	for file_index: int in range(loaded_starts.size() - 1, -1, -1):
+		if position >= loaded_starts[file_index]:
+			return loaded_paths[file_index]
+	return ""
+
+
 ## 会話中なら delta 秒だけ時間を進め、表示時間を過ぎたメッセージは次の行へ送り、制限時間を過ぎた選択肢は時間切れに
 ## する。会話中でなければ何もしない (バックログを開いている間は会話が止まる)。経過時間を積むため冪等ではない
 func advance(delta: float) -> void:
@@ -151,19 +173,29 @@ func result() -> Dictionary:
 
 ## scenario_paths のシナリオを読み、会話の進行と結果を初期値に戻して最初の行から会話中にする
 func _start() -> void:
-	lines = ScenarioScript.load_lines(scenario_paths)
+	_load()
 	_begin({}, 0)
 
 
 ## scenario_paths のシナリオを読み、保存した章の区切りの次の行から、保存した好感度で会話中にする。
 ## 保存した章がシナリオに無い (シナリオが変わった) 時は最初から始める
 func _resume() -> void:
-	lines = ScenarioScript.load_lines(scenario_paths)
+	_load()
 	var chapter: int = ScenarioScript.chapter_index(lines, save_data.chapter)
 	if chapter < 0:
 		_begin({}, 0)
 	else:
 		_begin(save_data.affection, chapter + 1)
+
+
+## scenario_paths のシナリオを 1 ファイルずつ読んで lines につなげ、各ファイルの最初の行の位置を記録する
+func _load() -> void:
+	lines = []
+	loaded_paths = scenario_paths.duplicate()
+	loaded_starts = []
+	for path: String in loaded_paths:
+		loaded_starts.append(lines.size())
+		lines.append_array(ScenarioScript.load_lines([path]))
 
 
 ## 読み込み済みの lines で、好感度を initial_affection、バックログを空にして from 番目の行から会話中にする
@@ -179,7 +211,8 @@ func _begin(initial_affection: Dictionary, from: int) -> void:
 
 
 ## from 番目の行から進めて、次に止まる行に着く。章の区切りならオートセーブしてその次へ進み、メッセージならバックログに
-## 積み、エンディング (または行が尽きた) ならエンディングの画面に移る
+## 積み、エンディング (または行が尽きた) ならエンディングの画面に移る。メッセージと選択肢の行に着いたことを signal で
+## 知らせる
 func _enter(from: int) -> void:
 	position = ConversationScript.next_stop(lines, from, affection)
 	if current_line().has(ScenarioScript.CHAPTER):
@@ -188,22 +221,30 @@ func _enter(from: int) -> void:
 		_enter(position + 1)
 	elif current_line().has(ScenarioScript.TEXT):
 		backlog.append(current_line())
-	elif not current_line().has(ScenarioScript.CHOICES):
+		message_entered.emit()
+	elif current_line().has(ScenarioScript.CHOICES):
+		choice_entered.emit()
+	else:
 		_finish()
 
 
 ## いまの選択肢の行で pick 番目 (ConversationScript.TIMEOUT なら時間切れ) を選び、結果の回数・好感度・バックログに
-## 積んで分岐先へ進む
+## 積んで分岐先へ進む。時間切れと、選んだ選択肢による好感度の変化を signal で知らせる
 func _pick(pick: int) -> void:
 	var choice: Dictionary = current_line()
 	var option: Dictionary = ConversationScript.picked_option(choice, pick)
 	if pick == ConversationScript.TIMEOUT:
 		timeout_count += 1
+		timed_out.emit()
 	else:
 		choice_count += 1
 	affection = ConversationScript.affection_after(
 		affection, option.get(ScenarioScript.AFFECTION, {})
 	)
+	if pick != ConversationScript.TIMEOUT and ConversationScript.changes_affection(
+		option.get(ScenarioScript.AFFECTION, {})
+	):
+		affection_changed.emit()
 	backlog.append(
 		{
 			ScenarioScript.SPEAKER: choice.get(ScenarioScript.SPEAKER, ""),
