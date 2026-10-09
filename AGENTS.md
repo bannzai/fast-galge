@@ -31,15 +31,15 @@
 | スクリーンショット (タイトル・会話中・選択肢・バックログ・エンディング。headless の検証では見た目の崩れを検出できない) | `make screenshot` | exit 0 かつ `tmp/screenshot-*.png` が生成される |
 | 起動の録画 (起動〜タイトルの表示〜本編の文字送り。起動直後の描画崩れ・真っ黒の検出と、文字送りの速さの目視。タイトルから本編を始める操作は `scripts/dev/movie.gd`) | `make movie` | exit 0 かつ `tmp/movie.mp4` が生成され、末尾のフレームの輝度平均が基準以上 (ffmpeg が必要) |
 | ゲームをエディタなしで起動 (人が遊んで確かめる。アセットのインポートを含む。引数なしの `make` の既定) | `make run` | ウィンドウが開きタイトル画面が表示される |
-| デスクトップエクスポート (Steam に提出する 3 プラットフォーム) | `make build-macos` / `make build-windows` / `make build-linux` / `make build-all` | exit 0 で `build/<platform>/` に成果物が生成され、`tmp/build-<platform>.log` に WARNING / ERROR 行がない。Windows と Linux は pck にシナリオの JSON が入っている |
-| Web エクスポート (検証専用。webtunnel で開く) | `make build-web` | exit 0 で `build/web/` に `index.html` / `index.wasm` / `index.pck` が生成され、`tmp/build-web.log` に WARNING / ERROR 行がなく、pck にシナリオの JSON が入っている |
+| デスクトップエクスポート (Steam に提出する 3 プラットフォーム) | `make build-macos` / `make build-windows` / `make build-linux` / `make build-all` | exit 0 で `build/<platform>/` に成果物が生成され、`tmp/build-<platform>.log` に WARNING / ERROR 行がない。Windows と Linux は pck にシナリオの JSON と同梱フォント・そのライセンス文が入っている |
+| Web エクスポート (検証専用。webtunnel で開く) | `make build-web` | exit 0 で `build/web/` に `index.html` / `index.wasm` / `index.pck` が生成され、`tmp/build-web.log` に WARNING / ERROR 行がなく、pck にシナリオの JSON と同梱フォント・そのライセンス文が入っている |
 
 - 画面や状態を追加したら `scripts/dev/screenshot.gd` の `_capture_scenes()` に撮影を足し、入力で変わる振る舞いは `scripts/dev/integration.gd` に検証を足す。純粋な計算は `scripts/dev/selfcheck.gd` に検証を足す
-- 日本語の字形は同梱しておらず、既定フォントからシステムフォントへのフォールバックで描画する (フォントの選定と同梱は関門 2 のデザインの反映で行う)。CI の撮影は `fonts-noto-cjk` を入れて描画する。Web エクスポートはシステムフォントを使えないため、フォントを同梱するまで日本語が表示されない
+- 文字は同梱した日本語フォント (`assets/fonts/`。`project.godot` の `gui/theme/custom_font`) で描画する。シーンごとにフォントを指定しない。システムフォントを使えない Web エクスポートでも日本語が表示され、CI の撮影はランナーに日本語フォントを入れずに描画する
 - Godot の起動にはすべて `--log-file` を付ける (Makefile の `ENGINE_LOG`)。付けないと Godot が `user://` にログを書こうとし、書き込みを拒否するサンドボックスでは起動に失敗する
 - ログは `tmp/*.log` に保存し、target の標準出力と `--log-file` の Godot 自身のログ (`tmp/<target>.godot.log`) の両方の全文を WARNING / ERROR 検査する (`tail` で切り詰めて判定しない。Makefile の `check_clean_log`)
 - エクスポートには Godot 4.7 の各プラットフォームの export template (デスクトップ 3 つと Web 用の `web_nothreads_release.zip`) が要る。CI は `.github/actions/setup-godot` が tpz から必要なテンプレートだけを取り出してキャッシュする
-- スクリプト・シーンを足した時に Godot が生成する `.uid` はコミット対象 (`~/.claude/rules/coding-rules-godot-gdscript-and-project-layout.md`)。このマシンでは生成できないため、CI の artifact `fast-galge-uid` を `gh run download <run ID> -n fast-galge-uid -D .` で取り込んでコミットする
+- スクリプト・シーンを足した時に Godot が生成する `.uid` と、`assets/` に素材を足した時の `.import` はコミット対象 (`~/.claude/rules/coding-rules-godot-gdscript-and-project-layout.md`)。このマシンでは生成できないため、CI の artifact `fast-galge-uid` を `gh run download <run ID> -n fast-galge-uid -D .` で取り込んでコミットする
 
 ## 規約
 
