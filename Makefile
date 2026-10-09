@@ -28,11 +28,14 @@ define check_clean_log
 for log in $(1); do test -s "$$log" || { echo "ログがありません: $$log"; exit 1; }; done
 ! grep -i -e 'WARNING' -e 'ERROR' $(1) | grep -v $(WINDOWED_LOG_NOISE) $(2) | grep -q .
 endef
-# .godot/ が無い状態 (clone 直後・CI) の import でだけ出る行。Godot は import の前にプロジェクトの既定フォント
-# (gui/theme/custom_font) を読もうとし、まだ import されていない同梱フォントを読めずに 2 行のエラーを出す。import 自体は
-# 続いて成功し、以降の起動 (check / selfcheck / 撮影 / エクスポート) ではフォントを読めるため、同じ行が出ればそちらの
-# ログ検査で失敗する
-IMPORT_LOG_NOISE := -e 'No loader found for resource: res://assets/fonts/' -e 'Error loading custom project font'
+# プロジェクトの既定フォント (project.godot の gui/theme/custom_font と同じファイル)
+PROJECT_FONT := assets/fonts/NotoSansJP-Regular.otf
+# .godot/ が無い状態 (clone 直後・CI) の import でだけ出る行。Godot は import の前に既定フォントを読もうとし、まだ
+# import されていないフォントを読めずにエラーを出す。文言は .import の有無で変わる (無ければ「No loader found」、
+# あれば import 済みの .fontdata の「Cannot open file」「Failed loading resource」) ため、フォントのパスと最後の
+# 「Error loading custom project font」で除く。import 自体は続いて成功し、以降の起動 (check / selfcheck / 撮影 /
+# エクスポート) ではフォントを読めるため、フォントが壊れていればそちらのログ検査で失敗する
+IMPORT_LOG_NOISE := -e '$(notdir $(PROJECT_FONT))' -e 'Error loading custom project font'
 
 # 引数なしの make は人が手で遊んで確かめる入口 (run)。lint・検証・エクスポートは CI が行う
 .DEFAULT_GOAL := run
@@ -119,7 +122,7 @@ run: import
 # 検証は通るのにエクスポートしたゲームだけ会話が始まらない・ライセンス文を同梱せずに配布することになる。フォントは
 # Web ビルドがシステムフォントを使えず、入っていないと日本語が表示されないため (macOS は pck が zip の中の .app に
 # 入るため検査しない)
-PCK_REQUIRED_FILES := $(wildcard scenario/*.json) assets/fonts/NotoSansJP-Regular.otf assets/fonts/OFL.txt
+PCK_REQUIRED_FILES := $(wildcard scenario/*.json) $(PROJECT_FONT) assets/fonts/OFL.txt
 define check_files_in_pck
 for file in $(PCK_REQUIRED_FILES); do grep -qa "$$file" $(1) || { echo "pck にファイルがありません: $$file"; exit 1; }; echo "pck に格納: $$file"; done
 endef
