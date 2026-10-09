@@ -12,10 +12,10 @@ const ResultScript := preload("res://scripts/result.gd")
 ## 結果の画像 (共有で保存する PNG) の保存先
 const RESULT_IMAGE_PATH: String = "tmp/screenshot-result.png"
 ## 結果の画像で文字が描かれていることを確かめる Label (scenes/result_card.tscn のノード名) と、
-## その範囲で背景と違う色の画素が最低いくつあれば文字が描かれているとみなすか (1 文字で数百画素になる)
+## その範囲で文字を消して描いた画像と違う色の画素が最低いくつあれば文字が描かれているとみなすか (1 文字で数百画素になる)
 const RESULT_TEXT_LABELS: Array[String] = ["EndingName", "Stats", "Footer"]
 const MIN_TEXT_PIXELS: int = 200
-## 背景と同じ色とみなす各成分の差の上限 (8 bit の量子化で 1/255 ずれるのを吸収する)
+## 同じ色とみなす各成分の差の上限 (8 bit の量子化で 1/255 ずれるのを吸収する)
 const COLOR_TOLERANCE: float = 2.0 / 255.0
 ## 共有の操作の保存を待つ上限のフレーム数 (描画の完了を 2 回待つ数フレームに十分な余裕)
 const SHARE_WAIT_FRAME_LIMIT: int = 300
@@ -161,9 +161,9 @@ func _capture_ending(main: Control) -> bool:
 		quit(1)
 		return false
 	var card: Control = main.get_node("EndingScreen/ResultViewport/ResultCard")
-	var background: Color = card.get_node("Background").color
+	var without_text: Image = await _result_image_without_text(main, card)
 	for label_name: String in RESULT_TEXT_LABELS:
-		var drawn: int = _pixels_differing(saved, card.get_node(label_name).get_rect(), background)
+		var drawn: int = _pixels_differing(saved, without_text, card.get_node(label_name).get_rect())
 		if drawn < MIN_TEXT_PIXELS:
 			push_error("結果の画像の %s に文字が描かれていない (%d 画素): %s" % [label_name, drawn, RESULT_IMAGE_PATH])
 			quit(1)
@@ -172,18 +172,32 @@ func _capture_ending(main: Control) -> bool:
 	return await _check_share_saves(main)
 
 
-## image の rect の範囲で、background と違う色の画素の数 (文字が描かれているかの判定用)。PNG は 8 bit に量子化されて
+## 結果の画像から RESULT_TEXT_LABELS の文字だけを消して描いた画像 (背景の画像の上の文字の有無を比べる基準)。
+## 撮り終えたら Label の表示を戻す
+func _result_image_without_text(main: Control, card: Control) -> Image:
+	for label_name: String in RESULT_TEXT_LABELS:
+		card.get_node(label_name).visible = false
+	await process_frame
+	await RenderingServer.frame_post_draw
+	var image: Image = main.get_node("EndingScreen/ResultViewport").get_texture().get_image()
+	for label_name: String in RESULT_TEXT_LABELS:
+		card.get_node(label_name).visible = true
+	return image
+
+
+## rect の範囲で、image と base の色が違う画素の数 (文字が描かれているかの判定用)。PNG は 8 bit に量子化されて
 ## いるため、各成分の差が COLOR_TOLERANCE 以下なら同じ色とみなす
-func _pixels_differing(image: Image, rect: Rect2, background: Color) -> int:
+func _pixels_differing(image: Image, base: Image, rect: Rect2) -> int:
 	var count: int = 0
 	var area: Rect2i = Rect2i(rect).intersection(Rect2i(Vector2i.ZERO, image.get_size()))
 	for y: int in range(area.position.y, area.end.y):
 		for x: int in range(area.position.x, area.end.x):
 			var pixel: Color = image.get_pixel(x, y)
+			var base_pixel: Color = base.get_pixel(x, y)
 			if (
-				absf(pixel.r - background.r) > COLOR_TOLERANCE
-				or absf(pixel.g - background.g) > COLOR_TOLERANCE
-				or absf(pixel.b - background.b) > COLOR_TOLERANCE
+				absf(pixel.r - base_pixel.r) > COLOR_TOLERANCE
+				or absf(pixel.g - base_pixel.g) > COLOR_TOLERANCE
+				or absf(pixel.b - base_pixel.b) > COLOR_TOLERANCE
 			):
 				count += 1
 	return count
