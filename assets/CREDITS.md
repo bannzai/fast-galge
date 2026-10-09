@@ -2,7 +2,7 @@
 
 `assets/` に置く素材の出典とライセンス。素材を追加・差し替えたら同じ変更でここに記録する (`make selfcheck` が、`assets/` の全ファイルがこの表に記録されていることを検証する)。記録の項目は `~/.claude/rules/coding-rules-general-assets-license.md` に従う。
 
-## 生成画像 (立ち絵・背景・タイトルの一枚絵・流線)
+## 生成画像 (立ち絵・背景・タイトルの一枚絵・流線・結果の画像の背景)
 
 下の表の「生成」の素材は、2026-10-09 に Codex CLI 0.156.0 の組み込み画像生成 (imagegen skill。ツール `image_gen.imagegen` の画像生成モデルは `gpt-image-2`。出典: https://github.com/openai/codex/blob/rust-v0.156.0/codex-rs/ext/image-generation/src/tool.rs の `const IMAGE_MODEL: &str = "gpt-image-2";`。生成時の codex のログの `model:` 行の `gpt-6-astra` はツールを呼んだ agent のモデル) で agent が生成した。生成は game-art-reference skill の `generate-reference.sh` で行い、画風は `documents/art-direction/` の承認済みの参考画像 (`play-1.png`・`title-1.png`) を添付して揃えた。プロンプトの共通部分は「1990 年代後半の PC ギャルゲー風のフラットな 2D アニメ調 (手描きの線の揺らぎと塗りむらを残したセル調)」と、使わないもの (ツヤのある 3D レンダ、金属やネオンの質感、磨かれすぎた左右対称の顔、パステル背景に太い輪郭線、写実の照明、読める文字やロゴ)。立ち絵は各ヒロインの `normal` を先に生成し、他の表情は `normal` を添付して同じ人物に揃えた。
 
@@ -24,3 +24,4 @@
 | `backgrounds/room.jpg` / `backgrounds/street.jpg` / `backgrounds/classroom.jpg` / `backgrounds/rooftop.jpg` / `backgrounds/broadcast_room.jpg` / `backgrounds/library.jpg` / `backgrounds/stage.jpg` / `backgrounds/track.jpg` / `backgrounds/beach.jpg` / `backgrounds/shrine.jpg` / `backgrounds/inn_hallway.jpg` / `backgrounds/avenue_night.jpg` / `backgrounds/sakura_tree.jpg` | 会話中の背景 (シナリオの `background`。主人公の部屋・通学路・教室・屋上・放送室・図書室・文化祭の舞台・グラウンド・海・神社・旅館の廊下・駅前の並木道・校舎裏の桜) | Codex の画像生成 (gpt-image-2) で agent が生成。プロンプトの要点: 場面の説明、人物と読める文字を描かない | 同上 | 1672x941 の PNG から 1280x720 に縮小し、ガウスぼかし (sigma 1.5) をかけて JPEG にした (立ち絵を背景から浮かせるため) |
 | `title/title.jpg` | タイトル画面の一枚絵 | Codex の画像生成 (gpt-image-2) で agent が生成。プロンプトの要点: 夕方の校門、手を振るヒナと残像・流線、静かに立つナギ、下 1/3 はタイトルの空き | 同上 | 1672x941 の PNG から 1600x900 に縮小して JPEG にした |
 | `effects/speed_lines.png` | ヒナの立ち絵の後ろに出す流線 | Codex の画像生成 (gpt-image-2) で agent が生成。プロンプトの要点: 左から右へ伸びるオレンジとクリーム色の細い横線、背景は透過 | 同上 | 幅 1280 に縮小 |
+| `result/result_card.jpg` | 共有する結果の画像の背景 (文字は `scenes/result_card.tscn` が上に重ねる) | Codex の画像生成 (gpt-image-2) で agent が生成 (2026-10-09。Codex CLI 0.156.0)。参考画像として承認済みの `result-1.png` と立ち絵の `nagi_smile.png`・`hina_smile.png` を添付した。プロンプトの要点: 深い紺の地に紺の流線、中央に四辺の破れたクリーム色の紙のカード、左の端からオレンジの荒い筆の流線、紙の上部に紺の二重線の空の枠、右下に 2 人の少女の 2 色刷りのスタンプ (ナギは紺・ヒナはオレンジ)、読める文字や時計のアイコンを描かない | 同上 | 1731x909 の PNG から 1200x630 に縮小して JPEG にした |
