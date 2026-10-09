@@ -1,65 +1,22 @@
 extends "res://scripts/dev/headless_check.gd"
 ## 画面の遷移表、会話エンジンの計算 (表示時間・時間切れ・好感度・分岐・章の区切り・所要時間)、シナリオの形式、本編 (5 つの
 ## エンディングへの到達・各ルートの所要時間・共通パートの分岐・章の区切りの数)、GameState の会話の進行 (章の区切りでの
-## オートセーブと「つづきから」の再開を含む)、背景と立ち絵の決め方と素材、保存データの読み書きと壊れたデータの扱い、
-## 全シーンのロード、全素材が
-## assets/CREDITS.md に記録されていることの検証 (headless)。
+## オートセーブと「つづきから」の再開を含む) と結果の記録、結果の文面と X の投稿画面の URL の形、背景と立ち絵の決め方と
+## 素材、保存データの読み書きと壊れたデータの扱い、全シーンのロード、全素材が assets/CREDITS.md に記録されていることの
+## 検証 (headless)。
 ## 実行方法は AGENTS.md を参照。release ビルドで assert が消えるため、明示的な判定と exit code で結果を返す。
 
 ## 起動検証 (main_scene の --quit) ではロードされない遷移先も含めた全シーン
 const SCENES: Array[String] = [
 	"res://scenes/main.tscn",
+	"res://scenes/result_card.tscn",
 ]
 ## 画面と遷移表を持つ autoload のスクリプト
 const GAME_STATE_SCRIPT := preload("res://scripts/game_state.gd")
-## 背景と立ち絵の素材と、いま出すものの決め方
-const StageScript := preload("res://scripts/stage.gd")
-## 背景と立ち絵の決め方の検証 (バックログ・期待する背景・期待する立ち絵の行の、バックログの中の位置 (-1 は無し)・説明)
-const STAGE_CASES: Array[Array] = [
-	[[], "", -1, "何も流れていなければ背景も立ち絵も無い"],
-	[
-		[{"text": "a", "background": "room"}, {"text": "b", "speaker": "ヒナ", "expression": "smile"}],
-		"room",
-		1,
-		"背景を指定した行の後のヒロインの行で、背景と立ち絵が出る",
-	],
-	[
-		[
-			{"text": "a", "background": "room"},
-			{"text": "b", "speaker": "ヒナ", "expression": "smile"},
-			{"text": "c", "speaker": "ユウ"},
-			{"text": "d"},
-		],
-		"room",
-		1,
-		"主人公の台詞や地の文の間も、直前のヒロインの立ち絵が残る",
-	],
-	[
-		[
-			{"text": "a", "background": "room"},
-			{"text": "b", "speaker": "ヒナ", "expression": "smile"},
-			{"text": "c", "background": "street"},
-		],
-		"street",
-		-1,
-		"場面が変わると立ち絵が消え、新しい背景が出る",
-	],
-	[
-		[
-			{"text": "a", "background": "room"},
-			{"text": "b", "background": "street", "speaker": "ナギ", "expression": "normal"},
-		],
-		"street",
-		1,
-		"背景と表情を両方持つ行は、新しい場面の最初の立ち絵になる",
-	],
-]
-## 素材の検証で、素材が無いことを見つけるシナリオ (誤りを含む行・説明)
-const INVALID_STAGE_LINES: Array[Array] = [
-	[{"text": "a", "background": "nowhere"}, "素材の無い背景"],
-	[{"text": "a", "speaker": "ヒナ", "expression": "crying"}, "素材の無い表情"],
-	[{"text": "a", "speaker": "ユウ", "expression": "smile"}, "立ち絵の無い話者の表情"],
-]
+## 背景と立ち絵の検証 (selfcheck.gd の行数を gdlint の上限に収めるため分けた)
+const StageCheckScript := preload("res://scripts/dev/stage_check.gd")
+## 結果の文面と URL の組み立て
+const ResultScript := preload("res://scripts/result.gd")
 ## 保存データの autoload のスクリプト
 const SAVE_DATA_SCRIPT := preload("res://scripts/save_data.gd")
 ## 保存・読み込みの検証で書き出す保存データ。プレイヤーの保存データ (user://) を書き換えないよう tmp/ に置く
@@ -274,6 +231,36 @@ const ROUTE_STUB_LINES: Array = [
 	{"label": COMMON_BAD},
 	{"ending": COMMON_BAD, "name": COMMON_BAD, "summary": COMMON_BAD},
 ]
+## 所要時間の表記の検証 (秒・期待する表記)。秒は切り捨て
+const FORMAT_SECONDS_CASES: Array[Array] = [
+	[0.0, "0分00秒"],
+	[59.9, "0分59秒"],
+	[302.9, "5分02秒"],
+	[3600.0, "60分00秒"],
+]
+## X の文字数の数え方の検証 (文・期待する文字数)。全角は 2、ASCII は 1、URL は長さによらず 23、改行と空白は 1
+const WEIGHTED_LENGTH_CASES: Array[Array] = [
+	["abc", 3],
+	["あ", 2],
+	["https://bannzai.github.io/fast-galge/", 23],
+	["あ https://x.com/intent/post\nabc", 2 + 1 + 23 + 1 + 3],
+]
+## 結果の文面の検証に使う結果 (所要時間 302.9 秒・選択肢 5・時間切れ 0)
+const SAMPLE_RESULT: Dictionary = {
+	ResultScript.ENDING_NAME: "ふたりの速度",
+	ResultScript.SECONDS: 302.9,
+	ResultScript.CHOICES: 5,
+	ResultScript.TIMEOUTS: 0,
+}
+## 結果の画像 (scenes/result_card.tscn) のエンディング名の 1 行に収まる文字数の上限 (幅 1080 px・72 px の全角 15 文字)
+const MAX_ENDING_NAME_LENGTH: int = 14
+## 文面の文字数の上限の検証で、どのエンディングでも超えないことを確かめる時に入れる最大の値
+## (本編の所要時間の上限と選択肢の数の上限)
+const LONGEST_RESULT_VALUES: Dictionary = {
+	ResultScript.SECONDS: MAIN_MAX_SECONDS,
+	ResultScript.CHOICES: MAIN_MAX_CHOICES,
+	ResultScript.TIMEOUTS: MAIN_MAX_CHOICES,
+}
 
 
 ## 全検証を実行し、1 件でも失敗していれば exit code 1、すべて通れば `selfcheck OK` を出して exit code 0 で終わる
@@ -286,6 +273,7 @@ func _initialize() -> void:
 	_check_main_scenario()
 	_check_game_state_conversation()
 	_check_stage()
+	_check_result_text()
 	_check_save_parse()
 	_check_save_file()
 	_check_scenes()
@@ -519,6 +507,17 @@ func _check_main_progress(case: Array, lines: Array, expected: Dictionary, choic
 		game_state.current_line() == expected["ending"],
 		"本編: %s を GameState で進めたエンディングが見積もりと一致する" % case[0]
 	)
+	_check(
+		is_equal_approx(game_state.play_seconds, stepped),
+		(
+			"本編: %s を GameState で進めた結果の所要時間が、会話中に進めた時間と一致する (%.2f 秒)"
+			% [case[0], game_state.play_seconds]
+		)
+	)
+	_check(
+		game_state.choice_count == choices,
+		"本編: %s を GameState で進めた結果の選んだ選択肢の数が %d" % [case[0], choices]
+	)
 	game_state.free()
 
 
@@ -609,6 +608,10 @@ func _check_game_state_conversation() -> void:
 	_check(game_state.choose(0), "進行: 選択肢を選べる")
 	_check(game_state.affection == {"hina": 1}, "進行: 選んだ選択肢の好感度が足される")
 	_check(
+		game_state.choice_count == 1 and game_state.timeout_count == 0,
+		"結果: 制限時間内に選ぶと選んだ選択肢の数が増え、時間切れの回数は増えない"
+	)
+	_check(
 		game_state.backlog[4]["text"] == game_state.lines[4]["choices"][0]["text"],
 		"進行: 選んだ選択肢がバックログに積まれる"
 	)
@@ -632,11 +635,29 @@ func _check_game_state_conversation() -> void:
 		),
 		"進行: 好感度を満たすと good のエンディングに着く"
 	)
+	var result: Dictionary = game_state.result()
+	_check(
+		(
+			result[ResultScript.ENDING_NAME] == game_state.current_line()["name"]
+			and result[ResultScript.CHOICES] == 1
+			and result[ResultScript.TIMEOUTS] == 0
+			and result[ResultScript.SECONDS] > 0.0
+		),
+		"結果: エンディングに着くとエンディング名・所要時間・選んだ選択肢の数・時間切れの回数が揃う (%s)" % result
+	)
 	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
 	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
 	_check(
 		game_state.affection.is_empty() and game_state.backlog.size() == 1,
 		"進行: やり直すと好感度とバックログが初期値に戻る"
+	)
+	_check(
+		(
+			game_state.choice_count == 0
+			and game_state.timeout_count == 0
+			and is_zero_approx(game_state.play_seconds)
+		),
+		"結果: やり直すと所要時間・選んだ選択肢の数・時間切れの回数が初期値に戻る"
 	)
 	game_state.advance(60.0)
 	_check(
@@ -649,6 +670,10 @@ func _check_game_state_conversation() -> void:
 	_check(
 		game_state.affection == {"hina": ConversationScript.TIMEOUT_AFFECTION},
 		"進行: 時間切れで好感度が下がる"
+	)
+	_check(
+		game_state.choice_count == 0 and game_state.timeout_count == 1,
+		"結果: 時間切れは時間切れの回数に数え、選んだ選択肢の数には数えない"
 	)
 	_check(
 		game_state.backlog.any(
@@ -836,57 +861,69 @@ func _remove_save_files(path: String) -> void:
 	_remove_file(path + SAVE_DATA_SCRIPT.WRITING_SUFFIX)
 
 
-## 背景と立ち絵の検証。バックログからの決め方 (STAGE_CASES)、本編とサンプルの background・expression・話者に素材が
-## あること、素材の無い値を見つけること (INVALID_STAGE_LINES)、全素材のファイルがあること、本編が背景で始まり
-## 全背景を使うこと
+## 背景と立ち絵の検証 (中身は scripts/dev/stage_check.gd)
 func _check_stage() -> void:
-	for case: Array in STAGE_CASES:
-		var backlog: Array = case[0]
-		_check(StageScript.shown_background(backlog) == case[1], "背景: %s" % case[3])
-		var expected_portrait: Dictionary = {} if case[2] < 0 else backlog[case[2]]
-		_check(StageScript.shown_portrait(backlog) == expected_portrait, "立ち絵: %s" % case[3])
-	var main_lines: Array = ScenarioScript.load_lines(GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS)
-	for lines: Array in [main_lines, ScenarioScript.load_lines(SAMPLE_SCENARIO_PATHS)]:
-		var errors: Array[String] = StageScript.errors(lines)
-		_check(errors.is_empty(), "素材: シナリオの背景・表情・話者に素材がある %s" % [errors])
-		_check_chapter_backgrounds(lines)
-	for case: Array in INVALID_STAGE_LINES:
-		_check(not StageScript.errors([case[0]]).is_empty(), "素材: %sを見つける" % case[1])
-	var paths: Array[String] = [StageScript.TITLE_PATH, StageScript.SPEED_LINES_PATH]
-	for background: String in StageScript.BACKGROUNDS:
-		paths.append(StageScript.background_path(background))
-	for speaker: String in StageScript.HEROINES:
-		for expression: String in StageScript.EXPRESSIONS:
-			paths.append(
-				StageScript.portrait_path(
-					{ScenarioScript.SPEAKER: speaker, ScenarioScript.EXPRESSION: expression}
-				)
-			)
-	for path: String in paths:
-		_check(ResourceLoader.exists(path), "素材: %s がある" % path)
-	_check(
-		main_lines[0].has(ScenarioScript.BACKGROUND), "素材: 本編の最初の行が背景を指定している"
-	)
-	var used: Array = main_lines.map(
-		func(line: Dictionary) -> String: return line.get(ScenarioScript.BACKGROUND, "")
-	)
-	for background: String in StageScript.BACKGROUNDS:
-		_check(background in used, "素材: 背景 %s を本編で使っている" % background)
+	for failure: String in StageCheckScript.failures(
+		GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS, SAMPLE_SCENARIO_PATHS
+	):
+		_check(false, failure)
 
 
-## lines (シナリオの行) の章の区切りごとに、その後の最初のメッセージの行が背景を指定していること。「つづきから」で
-## 再開した直後のバックログはその 1 行だけで、背景が無いと背景が決まらないため
-func _check_chapter_backgrounds(lines: Array) -> void:
-	for index: int in range(lines.size()):
-		if not lines[index].has(ScenarioScript.CHAPTER):
-			continue
-		var message: int = index + 1
-		while message < lines.size() and not lines[message].has(ScenarioScript.TEXT):
-			message += 1
+## 結果の文面と X の投稿画面の URL の検証。所要時間の表記、X の文字数の数え方、文面にエンディング名・結果・ハッシュタグ・
+## URL が入ること、サンプルと本編のどのエンディングでも文字数の上限に収まること、URL の形 (投稿画面の URL で始まり、
+## 符号化した文面を戻すと元の文面になり、符号化されていない空白・改行・# を含まない)
+func _check_result_text() -> void:
+	for case: Array in FORMAT_SECONDS_CASES:
+		_check(ResultScript.format_seconds(case[0]) == case[1], "所要時間の表記: %.1f 秒は %s" % case)
+	for case: Array in WEIGHTED_LENGTH_CASES:
 		_check(
-			message < lines.size() and lines[message].has(ScenarioScript.BACKGROUND),
-			"素材: 章の区切り %s の後の最初のメッセージが背景を指定している" % lines[index][ScenarioScript.CHAPTER]
+			ResultScript.weighted_length(case[0]) == case[1],
+			"X の文字数: %s は %d" % [case[0].replace("\n", "\\n"), case[1]]
 		)
+	var text: String = ResultScript.share_text(SAMPLE_RESULT)
+	for expected: String in [
+		ResultScript.GAME_NAME,
+		SAMPLE_RESULT[ResultScript.ENDING_NAME],
+		"5分02秒",
+		"選んだ選択肢 5",
+		"時間切れ 0",
+		ResultScript.HASHTAG,
+		ResultScript.URL,
+	]:
+		_check(text.contains(expected), "文面: %s が入る" % expected)
+	for ending: Dictionary in _ending_lines():
+		_check(
+			ending[ScenarioScript.NAME].length() <= MAX_ENDING_NAME_LENGTH,
+			(
+				"エンディング名の長さ: %s が結果の画像の 1 行に収まる %d 文字以内 (%d 文字)"
+				% [ending[ScenarioScript.ENDING], MAX_ENDING_NAME_LENGTH, ending[ScenarioScript.NAME].length()]
+			)
+		)
+		var longest: Dictionary = LONGEST_RESULT_VALUES.duplicate()
+		longest[ResultScript.ENDING_NAME] = ending[ScenarioScript.NAME]
+		var length: int = ResultScript.weighted_length(ResultScript.share_text(longest))
+		_check(
+			length <= ResultScript.MAX_WEIGHTED_LENGTH,
+			(
+				"文面の文字数: %s が上限 %d に収まる (%d)"
+				% [ending[ScenarioScript.ENDING], ResultScript.MAX_WEIGHTED_LENGTH, length]
+			)
+		)
+	var url: String = ResultScript.share_url(text)
+	_check(url.begins_with(ResultScript.INTENT_URL_PREFIX), "URL: X の投稿画面の URL で始まる")
+	var encoded: String = url.trim_prefix(ResultScript.INTENT_URL_PREFIX)
+	_check(encoded.uri_decode() == text, "URL: 符号化した文面を戻すと元の文面になる")
+	_check(
+		not encoded.contains(" ") and not encoded.contains("\n") and not encoded.contains("#"),
+		"URL: 符号化されていない空白・改行・# を含まない"
+	)
+
+
+## サンプルと本編のシナリオのエンディングの行
+func _ending_lines() -> Array:
+	var lines: Array = ScenarioScript.load_lines(SAMPLE_SCENARIO_PATHS)
+	lines.append_array(ScenarioScript.load_lines(GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS))
+	return lines.filter(func(line: Dictionary) -> bool: return line.has(ScenarioScript.ENDING))
 
 
 ## 全シーンがロードできる
