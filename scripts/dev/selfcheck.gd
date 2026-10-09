@@ -866,14 +866,11 @@ func _check_stage() -> void:
 	_check(
 		main_lines[0].has(ScenarioScript.BACKGROUND), "素材: 本編の最初の行が背景を指定している"
 	)
+	var used: Array = main_lines.map(
+		func(line: Dictionary) -> String: return line.get(ScenarioScript.BACKGROUND, "")
+	)
 	for background: String in StageScript.BACKGROUNDS:
-		_check(
-			main_lines.any(
-				func(line: Dictionary) -> bool:
-					return line.get(ScenarioScript.BACKGROUND, "") == background
-			),
-			"素材: 背景 %s を本編で使っている" % background
-		)
+		_check(background in used, "素材: 背景 %s を本編で使っている" % background)
 
 
 ## 全シーンがロードできる
