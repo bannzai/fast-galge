@@ -61,14 +61,34 @@ focus_mode = 0
 theme_override_font_sizes/font_size = 32
 text = "つづきから [C]"
 
-[node name="EndingsButton" type="Button" parent="TitleScreen"]
+[node name="SettingsButton" type="Button" parent="TitleScreen"]
 layout_mode = 0
 offset_left = 440.0
-offset_top = 600.0
-offset_right = 840.0
-offset_bottom = 680.0
+offset_top = 610.0
+offset_right = 630.0
+offset_bottom = 670.0
 focus_mode = 0
-theme_override_font_sizes/font_size = 32
+theme_override_font_sizes/font_size = 24
+text = "設定 [O]"
+
+[node name="CreditsButton" type="Button" parent="TitleScreen"]
+layout_mode = 0
+offset_left = 650.0
+offset_top = 610.0
+offset_right = 840.0
+offset_bottom = 670.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
+text = "クレジット [K]"
+
+[node name="EndingsButton" type="Button" parent="TitleScreen"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 420.0
+offset_bottom = 80.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 26
 text = "エンディング一覧 [E]"
 
 [node name="SlowModeButton" type="Button" parent="TitleScreen"]
@@ -327,6 +347,233 @@ theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
 vertical_alignment = 0
 autowrap_mode = 3
+
+[node name="SettingsScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="ColorRect" parent="SettingsScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.14, 0.13, 0.2, 1)
+
+[node name="Heading" type="Label" parent="SettingsScreen"]
+layout_mode = 0
+offset_left = 80.0
+offset_top = 24.0
+offset_right = 800.0
+offset_bottom = 84.0
+theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+theme_override_font_sizes/font_size = 36
+text = "設定"
+vertical_alignment = 1
+
+[node name="Volumes" type="Control" parent="SettingsScreen"]
+layout_mode = 0
+offset_left = 240.0
+offset_top = 200.0
+offset_right = 1040.0
+offset_bottom = 400.0
+
+[node name="BGM" type="Control" parent="SettingsScreen/Volumes"]
+layout_mode = 0
+offset_right = 800.0
+offset_bottom = 80.0
+
+[node name="Name" type="Label" parent="SettingsScreen/Volumes/BGM"]
+layout_mode = 0
+offset_right = 200.0
+offset_bottom = 80.0
+theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
+theme_override_font_sizes/font_size = 32
+text = "BGM"
+vertical_alignment = 1
+
+[node name="Down" type="Button" parent="SettingsScreen/Volumes/BGM"]
+layout_mode = 0
+offset_left = 220.0
+offset_top = 8.0
+offset_right = 300.0
+offset_bottom = 72.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 32
+text = "－"
+
+[node name="Level" type="ProgressBar" parent="SettingsScreen/Volumes/BGM"]
+layout_mode = 0
+offset_left = 320.0
+offset_top = 20.0
+offset_right = 620.0
+offset_bottom = 60.0
+theme_override_font_sizes/font_size = 24
+step = 1.0
+
+[node name="Up" type="Button" parent="SettingsScreen/Volumes/BGM"]
+layout_mode = 0
+offset_left = 640.0
+offset_top = 8.0
+offset_right = 720.0
+offset_bottom = 72.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 32
+text = "＋"
+
+[node name="SE" type="Control" parent="SettingsScreen/Volumes"]
+layout_mode = 0
+offset_top = 120.0
+offset_right = 800.0
+offset_bottom = 200.0
+
+[node name="Name" type="Label" parent="SettingsScreen/Volumes/SE"]
+layout_mode = 0
+offset_right = 200.0
+offset_bottom = 80.0
+theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
+theme_override_font_sizes/font_size = 32
+text = "効果音"
+vertical_alignment = 1
+
+[node name="Down" type="Button" parent="SettingsScreen/Volumes/SE"]
+layout_mode = 0
+offset_left = 220.0
+offset_top = 8.0
+offset_right = 300.0
+offset_bottom = 72.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 32
+text = "－"
+
+[node name="Level" type="ProgressBar" parent="SettingsScreen/Volumes/SE"]
+layout_mode = 0
+offset_left = 320.0
+offset_top = 20.0
+offset_right = 620.0
+offset_bottom = 60.0
+theme_override_font_sizes/font_size = 24
+step = 1.0
+
+[node name="Up" type="Button" parent="SettingsScreen/Volumes/SE"]
+layout_mode = 0
+offset_left = 640.0
+offset_top = 8.0
+offset_right = 720.0
+offset_bottom = 72.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 32
+text = "＋"
+
+[node name="CloseButton" type="Button" parent="SettingsScreen"]
+layout_mode = 0
+offset_left = 500.0
+offset_top = 636.0
+offset_right = 780.0
+offset_bottom = 700.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 26
+text = "とじる [O]"
+
+[node name="CreditsScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="ColorRect" parent="CreditsScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.14, 0.13, 0.2, 1)
+
+[node name="Heading" type="Label" parent="CreditsScreen"]
+layout_mode = 0
+offset_left = 80.0
+offset_top = 24.0
+offset_right = 800.0
+offset_bottom = 84.0
+theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+theme_override_font_sizes/font_size = 36
+text = "クレジット"
+vertical_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="CreditsScreen"]
+layout_mode = 0
+offset_left = 80.0
+offset_top = 100.0
+offset_right = 1200.0
+offset_bottom = 450.0
+horizontal_scroll_mode = 0
+
+[node name="Entries" type="Label" parent="CreditsScreen/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
+theme_override_font_sizes/font_size = 22
+autowrap_mode = 3
+
+[node name="TermsButton" type="Button" parent="CreditsScreen"]
+layout_mode = 0
+offset_left = 80.0
+offset_top = 470.0
+offset_right = 620.0
+offset_bottom = 530.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
+text = "利用規約"
+
+[node name="PrivacyButton" type="Button" parent="CreditsScreen"]
+layout_mode = 0
+offset_left = 660.0
+offset_top = 470.0
+offset_right = 1200.0
+offset_bottom = 530.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
+text = "プライバシーポリシー"
+
+[node name="SupportButton" type="Button" parent="CreditsScreen"]
+layout_mode = 0
+offset_left = 80.0
+offset_top = 550.0
+offset_right = 620.0
+offset_bottom = 610.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
+text = "サポートページ"
+
+[node name="MailButton" type="Button" parent="CreditsScreen"]
+layout_mode = 0
+offset_left = 660.0
+offset_top = 550.0
+offset_right = 1200.0
+offset_bottom = 610.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
+text = "メールで問い合わせる"
+
+[node name="CloseButton" type="Button" parent="CreditsScreen"]
+layout_mode = 0
+offset_left = 500.0
+offset_top = 636.0
+offset_right = 780.0
+offset_bottom = 700.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 26
+text = "とじる [K]"
 
 [node name="EndingsScreen" type="Control" parent="."]
 visible = false
