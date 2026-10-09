@@ -52,8 +52,8 @@ check: import
 	tail -n 1 $(LOG_DIR)/check.log | grep -q '^exit=0$$'
 	$(call check_clean_log,$(LOG_DIR)/check.log $(LOG_DIR)/check.godot.log)
 
-# 画面の遷移表・会話エンジンの計算・シナリオの形式と所要時間・オートセーブと再開・保存データの読み書き・全シーンの
-# ロード・全素材の assets/CREDITS.md への記録の検証 (headless)
+# 画面の遷移表・会話エンジンの計算・シナリオの形式と所要時間・オートセーブと再開・保存データの読み書き・音量の保存と
+# 読み込みとバスへの反映・全シーンのロード・全素材の assets/CREDITS.md への記録とクレジット画面の文の検証 (headless)
 selfcheck: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --script res://scripts/dev/selfcheck.gd > $(LOG_DIR)/selfcheck.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/selfcheck.log; \
@@ -62,7 +62,8 @@ selfcheck: import
 	$(call check_clean_log,$(LOG_DIR)/selfcheck.log $(LOG_DIR)/selfcheck.godot.log)
 
 # キー入力とマウスのクリックでメインシーンを動かす入力統合テスト (headless)。会話の自動送り・選択・時間切れ・
-# バックログの開閉・エンディングへの到達・オートセーブと「つづきから」の再開と、表示の追従を確認する。--fixed-fps で
+# バックログの開閉・エンディングへの到達・オートセーブと「つづきから」の再開と、表示の追従と、タイトルから開く設定
+# (音量の変更と保存) とクレジット (リンクを開く) を確認する。--fixed-fps で
 # 会話の時間を実時間から切り離し、本編 5 周 (5 つのエンディング。ルートに入る周は 1 周 約 5 分) を待たずに流す
 integration: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --fixed-fps 60 --script res://scripts/dev/integration.gd > $(LOG_DIR)/integration.log 2>&1; \
@@ -108,11 +109,12 @@ movie: import
 run: import
 	"$(GODOT)" $(ENGINE_LOG) --path .
 
-# 引数の pck に scenario/ の全ファイルが入っていることを検査する。JSON はスクリプトから参照されないデータで、
-# export_presets.cfg の include_filter から漏れると、headless の検証は通るのにエクスポートしたゲームだけ会話が
-# 始まらなくなるため (macOS は pck が zip の中の .app に入るため検査しない)
+# 引数の pck に scenario/ の全ファイルと素材の記録 (assets/CREDITS.md) が入っていることを検査する。どちらも
+# スクリプトから参照されないデータで、export_presets.cfg の include_filter から漏れると、headless の検証は通るのに
+# エクスポートしたゲームだけ会話が始まらない・クレジット画面に素材の出典が出なくなるため (macOS は pck が zip の中の
+# .app に入るため検査しない)
 define check_scenario_in_pck
-for scenario in $(wildcard scenario/*.json); do grep -qa "$$scenario" $(1) || { echo "pck にシナリオがありません: $$scenario"; exit 1; }; done
+for scenario in $(wildcard scenario/*.json) assets/CREDITS.md; do grep -qa "$$scenario" $(1) || { echo "pck にファイルがありません: $$scenario"; exit 1; }; done
 endef
 
 # エクスポート。プリセット名は export_presets.cfg と一致させる。実行には Godot 4.7 の各プラットフォームの export template が

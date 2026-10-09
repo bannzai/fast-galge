@@ -1,7 +1,7 @@
 extends Control
-## メインシーン。GameState の画面に合わせてタイトル・会話・バックログ・エンディングの表示を切り替え、毎フレーム
-## 会話の時間を進める。キー入力とタップ用のボタンを GameState の操作に写すだけで、会話の進行は持たない
-## (見た目は仮の色面。関門 2 のデザインの反映で作り直す)。
+## メインシーン。GameState の画面に合わせてタイトル・会話・バックログ・エンディング・設定・クレジットの表示を
+## 切り替え、毎フレーム会話の時間を進める。キー入力とタップ用のボタンを GameState の操作 (設定の音量は SaveData) に
+## 写すだけで、会話の進行も音量も持たない (見た目は仮の色面。関門 2 のデザインの反映で作り直す)。
 
 ## autoload の GameState のスクリプト。autoload 名の識別子で参照すると、--script で起動する scripts/dev/ の検証が
 ## autoload の登録前にこのスクリプトをコンパイルして失敗するため、ノードとして取る
@@ -10,17 +10,27 @@ const GameStateScript := preload("res://scripts/game_state.gd")
 const ScenarioScript := preload("res://scripts/scenario.gd")
 ## 会話のルールの値と計算 (選択肢の制限時間、1 フレームで進める時間)
 const ConversationScript := preload("res://scripts/conversation.gd")
+## 音量のバスと段階 (autoload の SaveData のスクリプト。GameState と同じ理由でノードとして取る)
+const SaveDataScript := preload("res://scripts/save_data.gd")
+## クレジット画面に出す素材の出典と、開くリンクの URL
+const CreditsScript := preload("res://scripts/credits.gd")
 ## 入力のアクションと、GameState に送る操作
 const SCREEN_ACTIONS: Dictionary = {
 	"confirm": GameStateScript.Command.CONFIRM,
 	"backlog": GameStateScript.Command.BACKLOG,
 	"continue": GameStateScript.Command.CONTINUE,
+	"settings": GameStateScript.Command.SETTINGS,
+	"credits": GameStateScript.Command.CREDITS,
 }
 ## 選択肢を選ぶ入力のアクション (並び順が選択肢の番号)
 const CHOICE_ACTIONS: Array[String] = ["choice_1", "choice_2", "choice_3"]
 
 ## 起動検証 (make check) が確認する起動の印
 const BOOT_MESSAGE: String = "fast-galge boot"
+
+## URL を開く処理 (引数は URL、戻り値は Error)。検証 (scripts/dev/integration.gd) がブラウザを開かずに、開こうとした
+## URL を記録する処理に差し替える
+var open_url: Callable = Callable(OS, "shell_open")
 
 ## タイトルの画面、会話を最初から始めるボタン、保存した章から再開するボタン (途中の保存がある間だけ出す)
 @onready var title_screen: Control = $TitleScreen
@@ -54,9 +64,17 @@ const BOOT_MESSAGE: String = "fast-galge boot"
 @onready var ending_name_label: Label = $EndingScreen/Name
 @onready var ending_summary_label: Label = $EndingScreen/Summary
 @onready var title_button: Button = $EndingScreen/TitleButton
+## 設定の画面と、バスの名前 (SaveDataScript.VOLUME_BUSES) ごとの音量の行 (下げるボタン Down・段階のバー Level・
+## 上げるボタン Up を持つ。ノード名がバスの名前) を並べる親
+@onready var settings_screen: Control = $SettingsScreen
+@onready var volume_rows: Control = $SettingsScreen/Volumes
+## クレジットの画面と、素材の出典の一覧
+@onready var credits_screen: Control = $CreditsScreen
+@onready var credits_label: Label = $CreditsScreen/Scroll/Entries
 
 
-## 起動の印を出し、タップ用のボタンを GameState の操作につなぎ、GameState の画面に合わせた表示にする
+## 起動の印を出し、タップ用のボタンを GameState の操作・音量の変更・URL を開く処理につなぎ、クレジットの一覧を読み、
+## GameState の画面に合わせた表示にする
 func _ready() -> void:
 	print(BOOT_MESSAGE)
 	start_button.pressed.connect(_apply.bind(GameStateScript.Command.CONFIRM))
@@ -66,6 +84,20 @@ func _ready() -> void:
 	title_button.pressed.connect(_apply.bind(GameStateScript.Command.CONFIRM))
 	for option_index: int in range(choice_buttons.size()):
 		choice_buttons[option_index].pressed.connect(_choose.bind(option_index))
+	$TitleScreen/SettingsButton.pressed.connect(_apply.bind(GameStateScript.Command.SETTINGS))
+	$SettingsScreen/CloseButton.pressed.connect(_apply.bind(GameStateScript.Command.SETTINGS))
+	for bus: String in SaveDataScript.VOLUME_BUSES:
+		var row: Control = volume_rows.get_node(bus)
+		row.get_node("Down").pressed.connect(_change_volume.bind(bus, -1))
+		row.get_node("Up").pressed.connect(_change_volume.bind(bus, 1))
+		row.get_node("Level").max_value = SaveDataScript.MAX_VOLUME
+	$TitleScreen/CreditsButton.pressed.connect(_apply.bind(GameStateScript.Command.CREDITS))
+	$CreditsScreen/CloseButton.pressed.connect(_apply.bind(GameStateScript.Command.CREDITS))
+	$CreditsScreen/TermsButton.pressed.connect(_open.bind(CreditsScript.TERMS_URL))
+	$CreditsScreen/PrivacyButton.pressed.connect(_open.bind(CreditsScript.PRIVACY_URL))
+	$CreditsScreen/SupportButton.pressed.connect(_open.bind(CreditsScript.SUPPORT_URL))
+	$CreditsScreen/MailButton.pressed.connect(_open.bind(CreditsScript.MAIL_URL))
+	credits_label.text = CreditsScript.load_text()
 	_refresh()
 
 
@@ -113,6 +145,27 @@ func _choose(option_index: int) -> void:
 		_refresh()
 
 
+## autoload の SaveData。登録されていない起動 (シーン単体の読み込み) では null
+func _save_data() -> Node:
+	return get_tree().root.get_node_or_null("SaveData")
+
+
+## bus のバスの音量を step 段だけ変えて (SaveData が保存とバスへの反映をする)、表示を更新する
+func _change_volume(bus: String, step: int) -> void:
+	var save_data: Node = _save_data()
+	if save_data == null:
+		return
+	save_data.set_volume(bus, save_data.volumes[bus] + step)
+	_refresh()
+
+
+## url を open_url で開く。開けなかった時はエラーを出す
+func _open(url: String) -> void:
+	var status: Error = open_url.call(url)
+	if status != OK:
+		push_error("URL を開けない: %s (%s)" % [url, error_string(status)])
+
+
 ## GameState の画面に合わせて、画面ごとの表示を切り替えて中身を更新する
 func _refresh() -> void:
 	var game_state: Node = _game_state()
@@ -123,6 +176,10 @@ func _refresh() -> void:
 	conversation_screen.visible = screen == GameStateScript.Screen.PLAYING
 	backlog_screen.visible = screen == GameStateScript.Screen.BACKLOG
 	ending_screen.visible = screen == GameStateScript.Screen.ENDING
+	settings_screen.visible = screen == GameStateScript.Screen.SETTINGS
+	credits_screen.visible = screen == GameStateScript.Screen.CREDITS
+	if settings_screen.visible:
+		_refresh_volumes()
 	if title_screen.visible:
 		continue_button.visible = game_state != null and game_state.can_continue()
 	if conversation_screen.visible:
@@ -152,6 +209,15 @@ func _refresh_conversation(game_state: Node) -> void:
 			choice_buttons[option_index].text = (
 				"%d. %s" % [option_index + 1, options[option_index][ScenarioScript.TEXT]]
 			)
+
+
+## 設定の画面の音量の行を、SaveData が持つバスごとの音量の段階に合わせる
+func _refresh_volumes() -> void:
+	var save_data: Node = _save_data()
+	if save_data == null:
+		return
+	for bus: String in SaveDataScript.VOLUME_BUSES:
+		volume_rows.get_node(bus).get_node("Level").value = save_data.volumes[bus]
 
 
 ## バックログの 1 行 (entry) を一覧に出す文にする。話者がいれば「」で囲み、地の文はそのまま出す

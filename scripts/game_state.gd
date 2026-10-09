@@ -1,13 +1,16 @@
 extends Node
-## ゲーム進行の状態 (autoload の GameState)。いま表示している画面 (タイトル・会話中・バックログ・エンディング) と
+## ゲーム進行の状態 (autoload の GameState)。いま表示している画面 (タイトル・会話中・バックログ・エンディング・設定・
+## クレジット) と
 ## 会話の進行 (シナリオの位置・経過時間・好感度・バックログ) を持つ。
 ## 画面をまたいで参照する値はここに集める (UI ノードに状態を持たせない)。会話のルールの計算は scripts/conversation.gd。
 ## 章の区切りでのオートセーブと到達したエンディングの記録は SaveData (scripts/save_data.gd) に書く。
 
-## 表示している画面。会話が進むのは PLAYING の間だけで、BACKLOG を開いている間は止まる
-enum Screen { TITLE, PLAYING, BACKLOG, ENDING }
-## 画面を切り替える操作 (project.godot の入力の confirm / backlog / continue)。CONTINUE はタイトルで保存した章から再開する
-enum Command { CONFIRM, BACKLOG, CONTINUE }
+## 表示している画面。会話が進むのは PLAYING の間だけで、BACKLOG を開いている間は止まる。SETTINGS と CREDITS は
+## タイトルから開く
+enum Screen { TITLE, PLAYING, BACKLOG, ENDING, SETTINGS, CREDITS }
+## 画面を切り替える操作 (project.godot の入力の confirm / backlog / continue / settings / credits)。CONTINUE はタイトルで
+## 保存した章から再開する
+enum Command { CONFIRM, BACKLOG, CONTINUE, SETTINGS, CREDITS }
 
 ## シナリオの保存形式の読み込みとキー
 const ScenarioScript := preload("res://scripts/scenario.gd")
@@ -16,10 +19,17 @@ const ConversationScript := preload("res://scripts/conversation.gd")
 ## 画面ごとに受け付ける操作と、その操作で移る画面。ここに無い操作はその画面では何もしない。
 ## ENDING へは操作ではなく、会話がエンディングの行に着くことで移る。TITLE の CONTINUE は途中の保存がある時だけ移る
 const TRANSITIONS: Dictionary = {
-	Screen.TITLE: {Command.CONFIRM: Screen.PLAYING, Command.CONTINUE: Screen.PLAYING},
+	Screen.TITLE: {
+		Command.CONFIRM: Screen.PLAYING,
+		Command.CONTINUE: Screen.PLAYING,
+		Command.SETTINGS: Screen.SETTINGS,
+		Command.CREDITS: Screen.CREDITS,
+	},
 	Screen.PLAYING: {Command.BACKLOG: Screen.BACKLOG},
 	Screen.BACKLOG: {Command.BACKLOG: Screen.PLAYING, Command.CONFIRM: Screen.PLAYING},
 	Screen.ENDING: {Command.CONFIRM: Screen.TITLE},
+	Screen.SETTINGS: {Command.SETTINGS: Screen.TITLE, Command.CONFIRM: Screen.TITLE},
+	Screen.CREDITS: {Command.CREDITS: Screen.TITLE, Command.CONFIRM: Screen.TITLE},
 }
 ## 本編のシナリオ。共通パート、2 人のヒロインのルート、共通の bad エンディングの順につなげて読む (共通パートの最後の
 ## 移動が好感度で分ける)
@@ -62,20 +72,20 @@ static func next_screen(current: Screen, command: Command) -> Screen:
 
 
 ## command を受けて画面を移す。移ったら true。タイトルから会話中に移る時は、CONFIRM なら scenario_paths のシナリオを
-## 最初から、CONTINUE なら保存した章の区切りの次から始める (保存が無ければ移らない)。
+## 最初から、CONTINUE なら保存した章の区切りの次から始める (保存が無ければ移らない)。それ以外の移動は画面だけを変える。
 ## 画面と会話の進行を書き換えるため冪等ではない
 func apply(command: Command) -> bool:
 	var next: Screen = next_screen(screen, command)
 	if next == screen:
 		return false
-	if screen != Screen.TITLE:
-		screen = next
-	elif command == Command.CONTINUE:
+	if screen == Screen.TITLE and command == Command.CONTINUE:
 		if not can_continue():
 			return false
 		_resume()
-	else:
+	elif screen == Screen.TITLE and command == Command.CONFIRM:
 		_start()
+	else:
+		screen = next
 	return true
 
 
