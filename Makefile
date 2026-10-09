@@ -22,11 +22,17 @@ MOVIE_FRAMES ?= 300
 # 引数のログ (target の標準出力・標準エラーの保存先と、--log-file の Godot 自身のログ) がすべて存在して空でなく、
 # 全文に WARNING / ERROR の行が無いことを検査する。Godot は診断を記録しても exit 0 で終わることがあるため、exit code
 # だけで判定しない。ログが無いと grep が何も出さずに検査が通ってしまうため、先に存在を確かめる (--log-file が効かずに
-# Godot のログが書かれなかった時に気づくため)。描画付き起動だけで出る既知のノイズ (WINDOWED_LOG_NOISE) は除く
+# Godot のログが書かれなかった時に気づくため)。描画付き起動だけで出る既知のノイズ (WINDOWED_LOG_NOISE) と、2 番目の
+# 引数に渡した grep の -e の並び (target 固有の既知のノイズ) は除く
 define check_clean_log
 for log in $(1); do test -s "$$log" || { echo "ログがありません: $$log"; exit 1; }; done
-! grep -i -e 'WARNING' -e 'ERROR' $(1) | grep -v $(WINDOWED_LOG_NOISE) | grep -q .
+! grep -i -e 'WARNING' -e 'ERROR' $(1) | grep -v $(WINDOWED_LOG_NOISE) $(2) | grep -q .
 endef
+# .godot/ が無い状態 (clone 直後・CI) の import でだけ出る行。Godot は import の前にプロジェクトの既定フォント
+# (gui/theme/custom_font) を読もうとし、まだ import されていない同梱フォントを読めずに 2 行のエラーを出す。import 自体は
+# 続いて成功し、以降の起動 (check / selfcheck / 撮影 / エクスポート) ではフォントを読めるため、同じ行が出ればそちらの
+# ログ検査で失敗する
+IMPORT_LOG_NOISE := -e 'No loader found for resource: res://assets/fonts/' -e 'Error loading custom project font'
 
 # 引数なしの make は人が手で遊んで確かめる入口 (run)。lint・検証・エクスポートは CI が行う
 .DEFAULT_GOAL := run
@@ -42,7 +48,7 @@ import: $(LOG_DIR)/.gdignore
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --import > $(LOG_DIR)/import.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/import.log; \
 	tail -n 1 $(LOG_DIR)/import.log | grep -q '^exit=0$$'
-	$(call check_clean_log,$(LOG_DIR)/import.log $(LOG_DIR)/import.godot.log)
+	$(call check_clean_log,$(LOG_DIR)/import.log $(LOG_DIR)/import.godot.log,$(IMPORT_LOG_NOISE))
 
 # 起動検証。メインシーンとスクリプトがロードでき、_ready が走ることを boot 出力で確認する
 check: import
