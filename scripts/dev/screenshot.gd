@@ -35,15 +35,15 @@ func _run() -> void:
 		quit(0)
 
 
-## 代表画面を、本編を早送りしながら順に撮影する。最後はエンディングからタイトルへ戻り、章の区切りを通った後の
-## タイトル (「つづきから」が出ている) を撮る。
+## 代表画面を、タイトルから開く設定とクレジットを撮ってから、本編を早送りしながら順に撮影する。最後はエンディングから
+## タイトルへ戻り、章の区切りを通った後のタイトル (「つづきから」が出ている) を撮る。
 ## 失敗した撮影は _capture() が quit(1) 済みなので、false を受けたらそのまま抜ける
 func _capture_scenes() -> bool:
 	var game_state: Node = root.get_node("GameState")
 	_isolate_save("screenshot")
 	var main: Control = _add_main()
 	await create_timer(SETTLE_TIME).timeout
-	if not await _capture("tmp/screenshot-title.png"):
+	if not await _capture_title_and_menus():
 		return false
 	await _hold_keys([KEY_ENTER], 1)
 	_fast_forward(
@@ -64,6 +64,19 @@ func _capture_scenes() -> bool:
 		return false
 	main.queue_free()
 	await process_frame
+	return true
+
+
+## タイトルと、タイトルから開く設定・クレジットの画面を撮影する。戻った時はタイトルの画面。失敗したら quit(1) 済みで false
+func _capture_title_and_menus() -> bool:
+	if not await _capture("tmp/screenshot-title.png"):
+		return false
+	for menu: Array in [[KEY_O, "settings"], [KEY_K, "credits"]]:
+		await _hold_keys([menu[0]], 1)
+		await create_timer(SETTLE_TIME).timeout
+		if not await _capture("tmp/screenshot-%s.png" % menu[1]):
+			return false
+		await _hold_keys([menu[0]], 1)
 	return true
 
 

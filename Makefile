@@ -61,8 +61,8 @@ check: import
 	tail -n 1 $(LOG_DIR)/check.log | grep -q '^exit=0$$'
 	$(call check_clean_log,$(LOG_DIR)/check.log $(LOG_DIR)/check.godot.log)
 
-# 画面の遷移表・会話エンジンの計算・シナリオの形式と所要時間・オートセーブと再開・保存データの読み書き・全シーンの
-# ロード・全素材の assets/CREDITS.md への記録の検証 (headless)
+# 画面の遷移表・会話エンジンの計算・シナリオの形式と所要時間・オートセーブと再開・保存データの読み書き・音量の保存と
+# 読み込みとバスへの反映・全シーンのロード・全素材の assets/CREDITS.md への記録とクレジット画面の文の検証 (headless)
 selfcheck: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --script res://scripts/dev/selfcheck.gd > $(LOG_DIR)/selfcheck.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/selfcheck.log; \
@@ -71,7 +71,8 @@ selfcheck: import
 	$(call check_clean_log,$(LOG_DIR)/selfcheck.log $(LOG_DIR)/selfcheck.godot.log)
 
 # キー入力とマウスのクリックでメインシーンを動かす入力統合テスト (headless)。会話の自動送り・選択・時間切れ・
-# バックログの開閉・エンディングへの到達・オートセーブと「つづきから」の再開と、表示の追従を確認する。--fixed-fps で
+# バックログの開閉・エンディングへの到達・オートセーブと「つづきから」の再開と、表示の追従と、タイトルから開く設定
+# (音量の変更と保存) とクレジット (リンクを開く) を確認する。--fixed-fps で
 # 会話の時間を実時間から切り離し、本編 5 周 (5 つのエンディング。ルートに入る周は 1 周 約 5 分) を待たずに流す
 integration: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --fixed-fps 60 --script res://scripts/dev/integration.gd > $(LOG_DIR)/integration.log 2>&1; \
@@ -117,15 +118,15 @@ movie: import
 run: import
 	"$(GODOT)" $(ENGINE_LOG) --path .
 
-# 引数の pck に scenario/ の全ファイルと、同梱フォントとそのライセンス文が入っていることを検査する。JSON と
-# ライセンス文はスクリプトから参照されないデータで、export_presets.cfg の include_filter から漏れると、headless の
-# 検証は通るのにエクスポートしたゲームだけ会話が始まらない・ライセンス文を同梱せずに配布することになる。フォントは
-# Web ビルドがシステムフォントを使えず、入っていないと日本語が表示されないため (macOS は pck が zip の中の .app に
-# 入るため検査しない)。
+# 引数の pck に scenario/ の全ファイルと、同梱フォントとそのライセンス文と、素材の記録 (assets/CREDITS.md) が入って
+# いることを検査する。JSON とライセンス文と素材の記録はスクリプトから参照されないデータで、export_presets.cfg の
+# include_filter から漏れると、headless の検証は通るのにエクスポートしたゲームだけ会話が始まらない・ライセンス文を
+# 同梱せずに配布する・クレジット画面に素材の出典が出ないことになる。フォントは Web ビルドがシステムフォントを使えず、
+# 入っていないと日本語が表示されないため (macOS は pck が zip の中の .app に入るため検査しない)。
 # フォントのパスは pck の中では .import の参照にしか一致しないため、import 済みのデータ
 # (.godot/imported/<ファイル名>-<hash>.fontdata) も確かめる。このパスは .import の中身 ([remap] の path) に 1 回現れるため、
 # ファイル一覧の項目と合わせて 2 回以上現れることで格納を判定する
-PCK_REQUIRED_FILES := $(wildcard scenario/*.json) $(PROJECT_FONT) assets/fonts/OFL.txt
+PCK_REQUIRED_FILES := $(wildcard scenario/*.json) $(PROJECT_FONT) assets/fonts/OFL.txt assets/CREDITS.md
 PCK_FONT_DATA := .godot/imported/$(notdir $(PROJECT_FONT))-
 define check_files_in_pck
 for file in $(PCK_REQUIRED_FILES); do grep -qa "$$file" $(1) || { echo "pck にファイルがありません: $$file"; exit 1; }; echo "pck に格納: $$file"; done

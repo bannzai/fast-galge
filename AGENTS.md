@@ -25,14 +25,14 @@
 | lint | `make lint` (`gdlint scripts/`) | exit 0 |
 | アセットインポート (初回・素材追加後) | `make import` | exit 0 (ログは `tmp/import.log`) |
 | 起動検証 (メインシーン・スクリプトのロード) | `make check` | exit 0 かつ `tmp/check.log` に `fast-galge boot` が出力され、WARNING / ERROR 行がない |
-| ロジック検証 (画面の遷移表、会話エンジンの計算 = 表示時間・時間切れ・好感度・分岐・章の区切り・所要時間、`scenario/` の全ファイルの形式、本編の各ルートの所要時間と 5 つのエンディングへの到達と共通パートの分岐、章の区切りでのオートセーブと「つづきから」の再開、保存データの読み書きと壊れたデータの扱い、結果の記録と X に投稿する文面・URL の形、全シーンのロード、全素材が `assets/CREDITS.md` に記録されていること) | `make selfcheck` | exit 0 かつ `tmp/selfcheck.log` に `selfcheck OK` が出力され、WARNING / ERROR 行がない |
-| 入力統合テスト (キー入力とマウスのクリックで、サンプルシナリオの自動送り・選択・時間切れ・バックログの開閉・タップだけでの完走・章の区切りでのオートセーブと「つづきから」の再開・壊れた保存データでの起動と、本編の 5 つのエンディングへの到達、エンディングでの結果の記録と共有のボタンの流れ (投稿画面を開く関数を差し替えて)。`--fixed-fps 60` で会話の時間を実時間から切り離して流す) | `make integration` | exit 0 かつ `tmp/integration.log` に `integration OK` が出力され、WARNING / ERROR 行がない |
+| ロジック検証 (画面の遷移表、会話エンジンの計算 = 表示時間・時間切れ・好感度・分岐・章の区切り・所要時間、`scenario/` の全ファイルの形式、本編の各ルートの所要時間と 5 つのエンディングへの到達と共通パートの分岐、章の区切りでのオートセーブと「つづきから」の再開、保存データの読み書きと壊れたデータの扱い、音量の保存と読み込みとバスへの反映、結果の記録と X に投稿する文面・URL の形、全シーンのロード、全素材が `assets/CREDITS.md` に記録されクレジット画面の文に出ること、クレジット画面のサポートページ・メールの宛先が紹介ページと一致すること) | `make selfcheck` | exit 0 かつ `tmp/selfcheck.log` に `selfcheck OK` が出力され、WARNING / ERROR 行がない |
+| 入力統合テスト (キー入力とマウスのクリックで、サンプルシナリオの自動送り・選択・時間切れ・バックログの開閉・タップだけでの完走・章の区切りでのオートセーブと「つづきから」の再開・壊れた保存データでの起動・タイトルから開く設定 (音量の変更と、読み込み直しても保たれること) とクレジット (リンクのタップで開く URL) と、本編の 5 つのエンディングへの到達、エンディングでの結果の記録と共有のボタンの流れ (投稿画面を開く関数を差し替えて)。`--fixed-fps 60` で会話の時間を実時間から切り離して流す) | `make integration` | exit 0 かつ `tmp/integration.log` に `integration OK` が出力され、WARNING / ERROR 行がない |
 | headless 検証の一括実行 (lint → check → selfcheck → integration) | `make test` | exit 0 |
-| スクリーンショット (タイトル・会話中・選択肢・バックログ・エンディング・エンディングの共有で保存する結果の画像 `tmp/screenshot-result.png`・「つづきから」が出たタイトル。headless の検証では見た目の崩れを検出できない) | `make screenshot` | exit 0 かつ `tmp/screenshot-*.png` が生成される |
+| スクリーンショット (タイトル・設定・クレジット・会話中・選択肢・バックログ・エンディング・エンディングの共有で保存する結果の画像 `tmp/screenshot-result.png`・「つづきから」が出たタイトル。headless の検証では見た目の崩れを検出できない) | `make screenshot` | exit 0 かつ `tmp/screenshot-*.png` が生成される |
 | 起動の録画 (起動〜タイトルの表示〜本編の文字送り。起動直後の描画崩れ・真っ黒の検出と、文字送りの速さの目視。タイトルから本編を始める操作は `scripts/dev/movie.gd`) | `make movie` | exit 0 かつ `tmp/movie.mp4` が生成され、末尾のフレームの輝度平均が基準以上 (ffmpeg が必要) |
 | ゲームをエディタなしで起動 (人が遊んで確かめる。アセットのインポートを含む。引数なしの `make` の既定) | `make run` | ウィンドウが開きタイトル画面が表示される |
-| デスクトップエクスポート (Steam に提出する 3 プラットフォーム) | `make build-macos` / `make build-windows` / `make build-linux` / `make build-all` | exit 0 で `build/<platform>/` に成果物が生成され、`tmp/build-<platform>.log` に WARNING / ERROR 行がない。Windows と Linux は pck にシナリオの JSON と同梱フォント・そのライセンス文が入っている |
-| Web エクスポート (検証専用。webtunnel で開く) | `make build-web` | exit 0 で `build/web/` に `index.html` / `index.wasm` / `index.pck` が生成され、`tmp/build-web.log` に WARNING / ERROR 行がなく、pck にシナリオの JSON と同梱フォント・そのライセンス文が入っている |
+| デスクトップエクスポート (Steam に提出する 3 プラットフォーム) | `make build-macos` / `make build-windows` / `make build-linux` / `make build-all` | exit 0 で `build/<platform>/` に成果物が生成され、`tmp/build-<platform>.log` に WARNING / ERROR 行がない。Windows と Linux は pck にシナリオの JSON と同梱フォント・そのライセンス文と `assets/CREDITS.md` が入っている |
+| Web エクスポート (検証専用。webtunnel で開く) | `make build-web` | exit 0 で `build/web/` に `index.html` / `index.wasm` / `index.pck` が生成され、`tmp/build-web.log` に WARNING / ERROR 行がなく、pck にシナリオの JSON と同梱フォント・そのライセンス文と `assets/CREDITS.md` が入っている |
 
 - 画面や状態を追加したら `scripts/dev/screenshot.gd` の `_capture_scenes()` に撮影を足し、入力で変わる振る舞いは `scripts/dev/integration.gd` に検証を足す。純粋な計算は `scripts/dev/selfcheck.gd` に検証を足す
 - 保存データ (`user://save.json`) を読み書きする検証・撮影は、`scripts/dev/game_driver.gd` の `_isolate_save()` で保存先を `res://tmp/` に変えてから動かす (プレイヤーの保存データを書き換えないため)

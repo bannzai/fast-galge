@@ -1,5 +1,6 @@
 extends Node
-## 保存データ (autoload の SaveData)。章の区切りでのオートセーブ (章の ID と好感度) と、到達したエンディングを持つ。
+## 保存データ (autoload の SaveData)。章の区切りでのオートセーブ (章の ID と好感度) と、到達したエンディングと、
+## 設定画面の音量 (BGM と効果音) を持つ。音量は読み込んだ時と変えた時に AudioServer のバスへ反映する。
 ## 保存先は端末内の user:// の JSON 1 ファイル (documents/PROJECT.md「技術・配信」) で、起動時に読み込み、変えるたびに書き出す。
 ## 読めない・形が違う保存データは壊れたものとして既定値で始め、元のファイルは次に保存する時に BROKEN_SUFFIX を付けて
 ## 退避してから書く (読み込みではファイルを動かさない。検証 (scripts/dev/) が保存先を変える前に autoload の起動時の
@@ -21,10 +22,23 @@ const KEY_VERSION: String = "version"
 const KEY_CHAPTER: String = "chapter"
 const KEY_AFFECTION: String = "affection"
 const KEY_REACHED_ENDINGS: String = "reached_endings"
+## 音量のキー。版 1 に後から足したキーで、無い保存データは既定の音量で読む (版を上げると既存の保存データが壊れた
+## 扱いになるため上げない)
+const KEY_VOLUMES: String = "volumes"
 ## parse() と default_data() が返す辞書の、壊れていたかの印のキー
 const KEY_BROKEN: String = "broken"
 ## 好感度の形 ({ヒロインの ID: 整数}) の判定 (シナリオの形式と同じ)
 const ScenarioScript := preload("res://scripts/scenario.gd")
+## 音量を変えられるバスの名前 (default_bus_layout.tres のバス。BGM と効果音)。並び順が設定画面の並び順
+const VOLUME_BUSES: Array[String] = ["BGM", "SE"]
+## 音量の段階の最大。0 で消音 (MUTED_DB)、最大でバスの音量 0 dB。1 タップで 1 段動かすため、端から端までのタップの
+## 回数が多すぎず、段階のバーの百分率がきりのよい値で読める細かさにする
+const MAX_VOLUME: int = 10
+## 保存データが無い時の音量の段階。BGM・効果音の素材 (#10) の音量が大きすぎても初回から耳に刺さらず、小さすぎれば
+## 上げる余地が残るよう、最大より 2 段下げる
+const DEFAULT_VOLUME: int = 8
+## 0 段の時のバスの音量 (dB)。0 の振幅を dB にすると -inf になるため、聞こえない大きさの有限の値にする
+const MUTED_DB: float = -80.0
 
 ## 保存先。検証 (scripts/dev/) はプレイヤーの保存データを書き換えないよう load_from() で別の場所に変える
 var path: String = SAVE_PATH
@@ -34,6 +48,8 @@ var chapter: String = ""
 var affection: Dictionary = {}
 ## 到達したエンディングの ID (到達した順。重複なし)
 var reached_endings: Array[String] = []
+## バスの名前 (VOLUME_BUSES) ごとの音量の段階 (0〜MAX_VOLUME)
+var volumes: Dictionary = default_volumes()
 ## 直近の読み込みで保存データが壊れていて既定値で始めたか。次に保存したら (壊れたファイルを退避してから) 消す
 var loaded_broken: bool = false
 
@@ -43,8 +59,8 @@ func _ready() -> void:
 	load_from(path)
 
 
-## at の保存データを読み込む。以降の保存先も at にする。無ければ既定値で始める。壊れていたら既定値で始める
-## (ファイルは動かさず、次の save() が退避する)
+## at の保存データを読み込み、音量をバスへ反映する。以降の保存先も at にする。無ければ既定値で始める。壊れていたら
+## 既定値で始める (ファイルは動かさず、次の save() が退避する)
 func load_from(at: String) -> void:
 	path = at
 	var data: Dictionary = default_data()
@@ -55,6 +71,8 @@ func load_from(at: String) -> void:
 	chapter = data[KEY_CHAPTER]
 	affection = data[KEY_AFFECTION]
 	reached_endings = data[KEY_REACHED_ENDINGS]
+	volumes = data[KEY_VOLUMES]
+	apply_volumes()
 
 
 ## 今の進行と記録を保存先へ書き出す。読み込んだ保存データが壊れていたら、先に path + BROKEN_SUFFIX へ退避する。
@@ -80,7 +98,7 @@ func save() -> Error:
 		var open_error: Error = FileAccess.get_open_error()
 		push_error("保存データを書き出せない: %s (%s)" % [writing, error_string(open_error)])
 		return open_error
-	var text: String = serialize(chapter, affection, reached_endings)
+	var text: String = serialize(chapter, affection, reached_endings, volumes)
 	var stored: bool = file.store_string(text)
 	var write_error: Error = file.get_error()
 	file.close()
@@ -128,9 +146,44 @@ func record_ending(ending: String) -> void:
 		reached_endings.erase(ending)
 
 
+## bus のバス (VOLUME_BUSES のどれか) の音量を level 段 (0〜MAX_VOLUME に収める) にしてバスへ反映し、保存する。
+## 変わらなければ何もしない。書き出せなかった時は前の値に戻す (持つ値は保存先の中身と一致させる)
+func set_volume(bus: String, level: int) -> void:
+	if not volumes.has(bus):
+		push_error("音量を変えられないバス: %s" % bus)
+		return
+	var previous: int = volumes[bus]
+	volumes[bus] = clampi(level, 0, MAX_VOLUME)
+	if volumes[bus] == previous:
+		return
+	if save() != OK:
+		volumes[bus] = previous
+	apply_volumes()
+
+
+## 持っている音量を AudioServer のバスへ反映する。バスが無い (default_bus_layout.tres が読まれていない) 時はエラーを出す
+func apply_volumes() -> void:
+	for bus: String in VOLUME_BUSES:
+		var index: int = AudioServer.get_bus_index(bus)
+		if index < 0:
+			push_error("音量のバスが無い: %s (default_bus_layout.tres)" % bus)
+			continue
+		AudioServer.set_bus_volume_db(index, volume_db(volumes[bus]))
+
+
+## 音量の段階 level のバスの音量 (dB)。段階を振幅の比 (level / MAX_VOLUME) として dB にし、0 段は MUTED_DB
+static func volume_db(level: int) -> float:
+	if level <= 0:
+		return MUTED_DB
+	return linear_to_db(float(level) / MAX_VOLUME)
+
+
 ## 保存データの文字列。値の順序を固定し、同じ内容からは同じ文字列を作る
 static func serialize(
-	chapter_id: String, affection_by_heroine: Dictionary, endings: Array[String]
+	chapter_id: String,
+	affection_by_heroine: Dictionary,
+	endings: Array[String],
+	volume_levels: Dictionary
 ) -> String:
 	return JSON.stringify(
 		{
@@ -138,6 +191,7 @@ static func serialize(
 			KEY_CHAPTER: chapter_id,
 			KEY_AFFECTION: affection_by_heroine,
 			KEY_REACHED_ENDINGS: endings,
+			KEY_VOLUMES: volume_levels,
 		},
 		"\t",
 		true
@@ -146,7 +200,8 @@ static func serialize(
 
 ## 保存データの文字列を解釈した値 (default_data() と同じ形)。JSON として読めない・最上位が辞書でない・版が違う時は
 ## broken を true にして既定値を返す。値ごとに型がおかしいものはその値だけ既定値にする (文字列でない章は無し、
-## {ヒロインの ID: 整数} でない好感度は空、文字列でない・重複したエンディングは捨てる)
+## {ヒロインの ID: 整数} でない好感度は空、文字列でない・重複したエンディングは捨てる、0〜MAX_VOLUME の整数でない
+## 音量はそのバスだけ既定の音量)
 static func parse(text: String) -> Dictionary:
 	var data: Dictionary = default_data()
 	var json: JSON = JSON.new()
@@ -171,6 +226,12 @@ static func parse(text: String) -> Dictionary:
 		for ending: Variant in endings_in:
 			if ending is String and not ending.is_empty() and not endings.has(ending):
 				endings.append(ending)
+	var volumes_in: Variant = root.get(KEY_VOLUMES)
+	if volumes_in is Dictionary:
+		for bus: String in VOLUME_BUSES:
+			var level: Variant = volumes_in.get(bus)
+			if _is_number(level) and level == int(level) and level >= 0 and level <= MAX_VOLUME:
+				data[KEY_VOLUMES][bus] = int(level)
 	return data
 
 
@@ -188,10 +249,24 @@ func _source_path() -> String:
 
 
 ## 保存データが無い時の値。broken は壊れていたか、chapter はオートセーブした章の ID (空なら無し)、affection は
-## ヒロインの ID ごとの好感度、reached_endings は到達したエンディングの ID
+## ヒロインの ID ごとの好感度、reached_endings は到達したエンディングの ID、volumes はバスごとの音量の段階
 static func default_data() -> Dictionary:
 	var endings: Array[String] = []
-	return {KEY_BROKEN: false, KEY_CHAPTER: "", KEY_AFFECTION: {}, KEY_REACHED_ENDINGS: endings}
+	return {
+		KEY_BROKEN: false,
+		KEY_CHAPTER: "",
+		KEY_AFFECTION: {},
+		KEY_REACHED_ENDINGS: endings,
+		KEY_VOLUMES: default_volumes(),
+	}
+
+
+## 保存データが無い時の、バスの名前 (VOLUME_BUSES) ごとの音量の段階
+static func default_volumes() -> Dictionary:
+	var levels: Dictionary = {}
+	for bus: String in VOLUME_BUSES:
+		levels[bus] = DEFAULT_VOLUME
+	return levels
 
 
 ## value が数 (JSON の数は float になる) か
