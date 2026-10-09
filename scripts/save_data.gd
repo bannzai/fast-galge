@@ -58,6 +58,8 @@ func load_from(at: String) -> void:
 
 
 ## 今の進行と記録を保存先へ書き出す。読み込んだ保存データが壊れていたら、先に path + BROKEN_SUFFIX へ退避する。
+## 保存先が無く読める書きかけだけが残っている (前回の置き換えの途中で落ちた) 時は、先にそれを保存先へ移して、
+## 書き出し途中のファイルの上書きで唯一の保存データを失わないようにする。
 ## 書き出し途中のファイルは、閉じた後に読み戻して書いた文字列と一致することを確かめてから保存先へ移す
 ## (FileAccess は close の失敗を返さず、get_error も flush の失敗を拾わないため。書けなかった時は既存の保存データを残す)。
 ## 書き出せたら壊れていた知らせを消す
@@ -68,6 +70,11 @@ func save() -> Error:
 			push_error("壊れた保存データを退避できない: %s (%s)" % [path, error_string(evacuate)])
 			return evacuate
 	var writing: String = path + WRITING_SUFFIX
+	if _source_path() == writing:
+		var recover: Error = DirAccess.rename_absolute(writing, path)
+		if recover != OK:
+			push_error("書きかけの保存データを保存先へ移せない: %s (%s)" % [writing, error_string(recover)])
+			return recover
 	var file: FileAccess = FileAccess.open(writing, FileAccess.WRITE)
 	if file == null:
 		var open_error: Error = FileAccess.get_open_error()
