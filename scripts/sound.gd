@@ -20,6 +20,11 @@ const SCENARIO_BGM: Dictionary = {
 	"res://scenario/route_nagi.json": BGM_ROUTE,
 	"res://scenario/common_bad.json": BGM_COMMON,
 }
+## BGM と効果音を鳴らすノードの音量 (dB。設定の画面のバスの音量の手前で掛かる)。素材はどれも最大振幅 0.8 に揃えて
+## 合成しており、0 dB のまま重ねると割れる (CI の録画の音声で、音のある区間の約 3 割が -1 dB を超えた)。振幅の比の
+## 和 (0.40 + 0.50) が 1 を超えない値にし、文字送りの効果音が BGM に埋もれないよう効果音を BGM より大きくする
+const BGM_VOLUME_DB: float = -8.0
+const EFFECT_VOLUME_DB: float = -6.0
 ## 効果音。GameState の signal の名前と、その signal で鳴らす素材。鳴らすノードは scenes/main.tscn の Audio の下の、
 ## signal と同じ名前のノード
 const EFFECTS: Dictionary = {

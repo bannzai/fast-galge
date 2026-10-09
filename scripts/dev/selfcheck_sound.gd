@@ -123,6 +123,14 @@ func _check_sound_assets() -> void:
 		)
 		_check(game_state.has_signal(event), "効果音: %s は GameState の signal" % event)
 	game_state.free()
+	_check(
+		db_to_linear(SOUND_SCRIPT.BGM_VOLUME_DB) + db_to_linear(SOUND_SCRIPT.EFFECT_VOLUME_DB) <= 1.0,
+		"音量: BGM と効果音を最大の音量で重ねても振幅の比の和が 1 を超えない (割れない)"
+	)
+	_check(
+		SOUND_SCRIPT.EFFECT_VOLUME_DB > SOUND_SCRIPT.BGM_VOLUME_DB,
+		"音量: 効果音が BGM に埋もれないよう、効果音のノードの音量を BGM より大きくする"
+	)
 
 
 ## メインシーンの BGM のノードが BGM のバス、効果音のノードが効果音のバスで鳴らし、どちらも設定の画面で音量を変える

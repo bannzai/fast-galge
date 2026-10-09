@@ -119,10 +119,12 @@ func _ready() -> void:
 	print(BOOT_MESSAGE)
 	title_art.texture = load(StageScript.TITLE_PATH)
 	speed_lines.texture = load(StageScript.SPEED_LINES_PATH)
+	bgm_player.volume_db = SoundScript.BGM_VOLUME_DB
 	var game_state: Node = _game_state()
 	for event: String in SoundScript.EFFECTS:
 		var effect_player: AudioStreamPlayer = $Audio.get_node(event)
 		effect_player.stream = SoundScript.EFFECTS[event]
+		effect_player.volume_db = SoundScript.EFFECT_VOLUME_DB
 		if game_state != null:
 			game_state.connect(event, effect_player.play)
 	start_button.pressed.connect(_apply.bind(GameStateScript.Command.CONFIRM))

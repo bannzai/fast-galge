@@ -621,7 +621,12 @@ func _check_bgm(main: Control, bgm: AudioStream, label: String) -> void:
 		_check(not bgm_player.playing, label)
 		return
 	_check(
-		bgm_player.playing and bgm_player.stream == bgm and bgm_player.bus == &"BGM",
+		(
+			bgm_player.playing
+			and bgm_player.stream == bgm
+			and bgm_player.bus == &"BGM"
+			and is_equal_approx(bgm_player.volume_db, SoundScript.BGM_VOLUME_DB)
+		),
 		"%s (%s)" % [label, bgm_player.stream.resource_path if bgm_player.stream != null else "なし"]
 	)
 
@@ -634,6 +639,7 @@ func _check_effect(main: Control, event: String, label: String) -> void:
 			effect_player.playing
 			and effect_player.stream == SoundScript.EFFECTS[event]
 			and effect_player.bus == &"SE"
+			and is_equal_approx(effect_player.volume_db, SoundScript.EFFECT_VOLUME_DB)
 		),
 		label
 	)
