@@ -63,9 +63,9 @@ check: import
 	tail -n 1 $(LOG_DIR)/check.log | grep -q '^exit=0$$'
 	$(call check_clean_log,$(LOG_DIR)/check.log $(LOG_DIR)/check.godot.log)
 
-# 画面の遷移表・会話エンジンの計算・シナリオの形式と所要時間・オートセーブと再開・保存データの読み書き・音量の保存と
-# 読み込みとバスへの反映・場面と BGM の対応と効果音・全シーンのロード・全素材の assets/CREDITS.md への記録と
-# クレジット画面の文の検証 (headless)
+# 画面の遷移表・会話エンジンの計算 (ゆっくりモードの速さの倍率を含む)・シナリオの形式と所要時間・オートセーブと再開・
+# ゆっくりモードの解放と進行・エンディング一覧の名前・保存データの読み書き・音量の保存と読み込みとバスへの反映・
+# 場面と BGM の対応と効果音・全シーンのロード・全素材の assets/CREDITS.md への記録とクレジット画面の文の検証 (headless)
 selfcheck: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --script res://scripts/dev/selfcheck.gd > $(LOG_DIR)/selfcheck.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/selfcheck.log; \
@@ -74,8 +74,9 @@ selfcheck: import
 	$(call check_clean_log,$(LOG_DIR)/selfcheck.log $(LOG_DIR)/selfcheck.godot.log)
 
 # キー入力とマウスのクリックでメインシーンを動かす入力統合テスト (headless)。会話の自動送り・選択・時間切れ・
-# バックログの開閉・エンディングへの到達・オートセーブと「つづきから」の再開と、表示の追従と、タイトルから開く設定
-# (音量の変更と保存) とクレジット (リンクを開く) と、場面に合わせた BGM と効果音を確認する。--fixed-fps で
+# バックログの開閉・エンディングへの到達・オートセーブと「つづきから」の再開・エンディング一覧・ゆっくりモードでの
+# 手で送る進行と、表示の追従と、タイトルから開く設定 (音量の変更と保存) とクレジット (リンクを開く) と、場面に合わせた
+# BGM と効果音を確認する。--fixed-fps で
 # 会話の時間を実時間から切り離し、本編 5 周 (5 つのエンディング。ルートに入る周は 1 周 約 5 分) を待たずに流す
 integration: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --fixed-fps 60 --script res://scripts/dev/integration.gd > $(LOG_DIR)/integration.log 2>&1; \

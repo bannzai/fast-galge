@@ -185,9 +185,9 @@ vertical_alignment = 1
 
 [node name="StartButton" type="Button" parent="TitleScreen"]
 layout_mode = 0
-offset_left = 330.0
+offset_left = 170.0
 offset_top = 576.0
-offset_right = 630.0
+offset_right = 470.0
 offset_bottom = 634.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 26
@@ -196,9 +196,9 @@ text = "はじめから [Enter]"
 [node name="ContinueButton" type="Button" parent="TitleScreen"]
 visible = false
 layout_mode = 0
-offset_left = 650.0
+offset_left = 490.0
 offset_top = 576.0
-offset_right = 950.0
+offset_right = 790.0
 offset_bottom = 634.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 26
@@ -206,9 +206,9 @@ text = "つづきから [C]"
 
 [node name="SettingsButton" type="Button" parent="TitleScreen"]
 layout_mode = 0
-offset_left = 330.0
+offset_left = 170.0
 offset_top = 646.0
-offset_right = 630.0
+offset_right = 470.0
 offset_bottom = 704.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 24
@@ -216,13 +216,33 @@ text = "設定 [O]"
 
 [node name="CreditsButton" type="Button" parent="TitleScreen"]
 layout_mode = 0
-offset_left = 650.0
+offset_left = 490.0
 offset_top = 646.0
-offset_right = 950.0
+offset_right = 790.0
 offset_bottom = 704.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 24
 text = "クレジット [K]"
+
+[node name="EndingsButton" type="Button" parent="TitleScreen"]
+layout_mode = 0
+offset_left = 810.0
+offset_top = 576.0
+offset_right = 1110.0
+offset_bottom = 634.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
+text = "エンディング一覧 [E]"
+
+[node name="SlowModeButton" type="Button" parent="TitleScreen"]
+visible = false
+layout_mode = 0
+offset_left = 810.0
+offset_top = 646.0
+offset_right = 1110.0
+offset_bottom = 704.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
 
 [node name="ConversationScreen" type="Control" parent="."]
 visible = false
@@ -301,6 +321,17 @@ offset_right = 1200.0
 offset_bottom = 152.0
 theme_override_font_sizes/font_size = 32
 autowrap_mode = 3
+
+[node name="SendArea" type="Button" parent="ConversationScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+self_modulate = Color(1, 1, 1, 0)
+focus_mode = 0
+flat = true
 
 [node name="BacklogButton" type="Button" parent="ConversationScreen"]
 layout_mode = 0
@@ -709,6 +740,63 @@ offset_bottom = 700.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 26
 text = "とじる [K]"
+
+[node name="EndingsScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Paper" type="Panel" parent="EndingsScreen"]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 24.0
+offset_right = 1220.0
+offset_bottom = 616.0
+mouse_filter = 2
+
+[node name="Heading" type="Label" parent="EndingsScreen"]
+layout_mode = 0
+offset_left = 100.0
+offset_top = 36.0
+offset_right = 800.0
+offset_bottom = 92.0
+theme_override_font_sizes/font_size = 36
+text = "エンディング一覧"
+vertical_alignment = 1
+
+[node name="Count" type="Label" parent="EndingsScreen"]
+layout_mode = 0
+offset_left = 780.0
+offset_top = 36.0
+offset_right = 1180.0
+offset_bottom = 92.0
+theme_override_colors/font_color = Color(0.93, 0.47, 0.16, 1)
+theme_override_font_sizes/font_size = 28
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="Entries" type="Label" parent="EndingsScreen"]
+layout_mode = 0
+offset_left = 100.0
+offset_top = 120.0
+offset_right = 1180.0
+offset_bottom = 596.0
+theme_override_constants/line_spacing = 16
+theme_override_font_sizes/font_size = 32
+
+[node name="CloseButton" type="Button" parent="EndingsScreen"]
+layout_mode = 0
+offset_left = 500.0
+offset_top = 636.0
+offset_right = 780.0
+offset_bottom = 700.0
+focus_mode = 0
+theme_override_font_sizes/font_size = 26
+text = "とじる [Enter]"
 
 [node name="Audio" type="Node" parent="."]
 

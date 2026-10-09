@@ -5,7 +5,8 @@ extends "res://scripts/dev/selfcheck_sound.gd"
 ## 決め方と素材、保存データの読み書きと壊れたデータの扱い、音量の保存と読み込みとバスへの反映、場面と BGM の対応と
 ## 効果音、全シーンのロード、全素材が assets/CREDITS.md に記録されクレジット画面の文に出ることと、クレジット画面の
 ## 問い合わせ先が紹介ページと一致することの検証 (headless。BGM と効果音の検証は継承元の scripts/dev/selfcheck_sound.gd、
-## 設定とクレジットの検証はその継承元の scripts/dev/selfcheck_menu.gd)。
+## 速さの倍率・ゆっくりモード・エンディング一覧の検証はその継承元の scripts/dev/selfcheck_speed_and_endings.gd、設定と
+## クレジットの検証はさらにその継承元の scripts/dev/selfcheck_menu.gd)。
 ## 実行方法は AGENTS.md を参照。release ビルドで assert が消えるため、明示的な判定と exit code で結果を返す。
 
 ## 起動検証 (main_scene の --quit) ではロードされない遷移先も含めた全シーン
@@ -271,6 +272,7 @@ func _initialize() -> void:
 	_check_scenario_format()
 	_check_main_scenario()
 	_check_game_state_conversation()
+	_check_speed_and_endings()
 	_check_stage()
 	_check_result_text()
 	_check_save_parse()

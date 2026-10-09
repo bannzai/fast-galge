@@ -22,6 +22,13 @@ const TIMEOUT: int = -1
 ## 数秒以上になり、そのまま進めると読んでいないメッセージが流れて選択肢が時間切れになるため、上限を超えた分は
 ## 進めない。10 fps 相当で、通常の描画 (30〜60 fps) の 1 フレームは上限に届かない
 const MAX_FRAME_SECONDS: float = 0.1
+## 会話の速さの倍率。表示時間と制限時間はこの倍率で割る。通常の速さは 1、クリア後に解放する「ゆっくりモード」は
+## SLOW_SPEED_RATE で、ゆっくりモードの速さは別の値の組を持たずこの倍率だけで決める
+## (.claude/rules/conversation-speed-and-scenario-single-source.md)。
+## ゆっくりモードでは表示時間をかけてメッセージの文字を出し、出し切った後はクリックか決定で送る (自動では送らない)。
+## SLOW_SPEED_RATE は通常のギャルゲーの文字の速さ (20 文字を 1.6 秒) に合わせた初期値で、CI の録画で見て調整する
+const NORMAL_SPEED_RATE: float = 1.0
+const SLOW_SPEED_RATE: float = 0.5
 
 
 ## 1 フレームの経過時間 delta (秒) のうち、会話に進める時間 (秒)
@@ -29,21 +36,33 @@ static func frame_seconds(delta: float) -> float:
 	return minf(delta, MAX_FRAME_SECONDS)
 
 
-## 本文 text のメッセージを表示し続ける時間 (秒)
-static func message_seconds(text: String) -> float:
-	return clampf(
-		text.length() * SECONDS_PER_CHARACTER, MIN_MESSAGE_SECONDS, MAX_MESSAGE_SECONDS
+## ゆっくりモード (slow) かどうかに応じた会話の速さの倍率
+static func speed_rate(slow: bool) -> float:
+	return SLOW_SPEED_RATE if slow else NORMAL_SPEED_RATE
+
+
+## 本文 text のメッセージを、速さの倍率 rate で表示し続ける時間 (秒)
+static func message_seconds(text: String, rate: float = NORMAL_SPEED_RATE) -> float:
+	return (
+		clampf(text.length() * SECONDS_PER_CHARACTER, MIN_MESSAGE_SECONDS, MAX_MESSAGE_SECONDS)
+		/ rate
 	)
 
 
-## line (メッセージ・選択肢・章の区切りの行) で表示が止まる時間 (秒)。メッセージは表示時間、選択肢は制限時間、
-## 章の区切りは表示されないため 0 (会話はオートセーブして通り過ぎる)
-static func stop_seconds(line: Dictionary) -> float:
+## line (メッセージ・選択肢・章の区切りの行) で、速さの倍率 rate の時に表示が止まる時間 (秒)。メッセージは表示時間、
+## 選択肢は制限時間、章の区切りは表示されないため 0 (会話はオートセーブして通り過ぎる)
+static func stop_seconds(line: Dictionary, rate: float = NORMAL_SPEED_RATE) -> float:
 	if line.has(ScenarioScript.CHOICES):
-		return CHOICE_SECONDS
+		return CHOICE_SECONDS / rate
 	if line.has(ScenarioScript.CHAPTER):
 		return 0.0
-	return message_seconds(line.get(ScenarioScript.TEXT, ""))
+	return message_seconds(line.get(ScenarioScript.TEXT, ""), rate)
+
+
+## 本文 text のメッセージを出し始めてから elapsed 秒の時点で、速さの倍率 rate で出し終えている文字の割合 (0〜1)。
+## ゆっくりモードの文字送りに使う
+static func revealed_ratio(text: String, elapsed: float, rate: float) -> float:
+	return clampf(elapsed / message_seconds(text, rate), 0.0, 1.0)
 
 
 ## choice (選択肢の行) で pick 番目 (0 始まり) を選んだ時に適用する選択肢。pick が TIMEOUT なら時間切れの扱いで、

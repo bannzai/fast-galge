@@ -1,8 +1,9 @@
-extends "res://scripts/dev/selfcheck_menu.gd"
+extends "res://scripts/dev/selfcheck_speed_and_endings.gd"
 ## 場面ごとの BGM と効果音の検証 (場面と BGM の対応、全シナリオのファイルに BGM が決まっていること、素材の読み込みと
 ## BGM の繰り返し、メインシーンの BGM・効果音のノードが設定の音量のバスを通ること、GameState が効果音のきっかけを
 ## 知らせる回数、本編を進めた時の BGM の移り変わり)。scripts/dev/selfcheck.gd が継承し、自分の検証と一緒に実行する
-## (selfcheck.gd を 1 ファイルの行数の上限 (gdlintrc の max-file-lines) に収めるため分けている)。
+## (selfcheck.gd を 1 ファイルの行数の上限 (gdlintrc の max-file-lines) に収めるため分けている。GameState と SaveData の
+## スクリプトの定数は継承元の scripts/dev/selfcheck_menu.gd のもの)。
 
 ## 場面ごとの BGM と効果音の素材
 const SOUND_SCRIPT := preload("res://scripts/sound.gd")
@@ -11,6 +12,12 @@ const BGM_CASES: Array[Array] = [
 	[GAME_STATE_SCRIPT.Screen.TITLE, "", null, "タイトルでは鳴らさない"],
 	[GAME_STATE_SCRIPT.Screen.SETTINGS, "", null, "設定では鳴らさない"],
 	[GAME_STATE_SCRIPT.Screen.CREDITS, "", null, "クレジットでは鳴らさない"],
+	[
+		GAME_STATE_SCRIPT.Screen.ENDINGS,
+		"res://scenario/route_hina.json",
+		null,
+		"エンディング一覧では、前の周の行が残っていても鳴らさない (タイトルから開く画面)",
+	],
 	[
 		GAME_STATE_SCRIPT.Screen.PLAYING,
 		"res://scenario/common.json",
