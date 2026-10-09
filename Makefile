@@ -108,11 +108,14 @@ movie: import
 run: import
 	"$(GODOT)" $(ENGINE_LOG) --path .
 
-# 引数の pck に scenario/ の全ファイルが入っていることを検査する。JSON はスクリプトから参照されないデータで、
-# export_presets.cfg の include_filter から漏れると、headless の検証は通るのにエクスポートしたゲームだけ会話が
-# 始まらなくなるため (macOS は pck が zip の中の .app に入るため検査しない)
-define check_scenario_in_pck
-for scenario in $(wildcard scenario/*.json); do grep -qa "$$scenario" $(1) || { echo "pck にシナリオがありません: $$scenario"; exit 1; }; done
+# 引数の pck に scenario/ の全ファイルと、同梱フォントとそのライセンス文が入っていることを検査する。JSON と
+# ライセンス文はスクリプトから参照されないデータで、export_presets.cfg の include_filter から漏れると、headless の
+# 検証は通るのにエクスポートしたゲームだけ会話が始まらない・ライセンス文を同梱せずに配布することになる。フォントは
+# Web ビルドがシステムフォントを使えず、入っていないと日本語が表示されないため (macOS は pck が zip の中の .app に
+# 入るため検査しない)
+PCK_REQUIRED_FILES := $(wildcard scenario/*.json) assets/fonts/NotoSansJP-Regular.otf assets/fonts/OFL.txt
+define check_files_in_pck
+for file in $(PCK_REQUIRED_FILES); do grep -qa "$$file" $(1) || { echo "pck にファイルがありません: $$file"; exit 1; }; echo "pck に格納: $$file"; done
 endef
 
 # エクスポート。プリセット名は export_presets.cfg と一致させる。実行には Godot 4.7 の各プラットフォームの export template が
@@ -129,7 +132,7 @@ build-web: import
 	test -f build/web/index.html
 	test -f build/web/index.wasm
 	test -f build/web/index.pck
-	$(call check_scenario_in_pck,build/web/index.pck)
+	$(call check_files_in_pck,build/web/index.pck)
 
 build-macos: import
 	@mkdir -p build/macos
@@ -149,7 +152,7 @@ build-windows: import
 	$(call check_clean_log,$(LOG_DIR)/build-windows.log $(LOG_DIR)/build-windows.godot.log)
 	test -f build/windows/fast-galge.exe
 	test -f build/windows/fast-galge.pck
-	$(call check_scenario_in_pck,build/windows/fast-galge.pck)
+	$(call check_files_in_pck,build/windows/fast-galge.pck)
 
 build-linux: import
 	@mkdir -p build/linux
@@ -160,7 +163,7 @@ build-linux: import
 	$(call check_clean_log,$(LOG_DIR)/build-linux.log $(LOG_DIR)/build-linux.godot.log)
 	test -f build/linux/fast-galge.x86_64
 	test -f build/linux/fast-galge.pck
-	$(call check_scenario_in_pck,build/linux/fast-galge.pck)
+	$(call check_files_in_pck,build/linux/fast-galge.pck)
 
 # Steam に提出するデスクトップ 3 プラットフォームの一括エクスポート
 build-all: build-macos build-windows build-linux
