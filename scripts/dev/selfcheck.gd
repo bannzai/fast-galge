@@ -251,7 +251,7 @@ const SAMPLE_RESULT: Dictionary = {
 	ResultScript.CHOICES: 5,
 	ResultScript.TIMEOUTS: 0,
 }
-## 結果の画像 (scenes/result_card.tscn) のエンディング名の 1 行に収まる文字数の上限 (幅 1080 px・72 px の全角 15 文字)
+## 結果の画像 (scenes/result_card.tscn) のエンディング名の 1 行に収まる文字数の上限 (幅 920 px・56 px の全角 16 文字)
 const MAX_ENDING_NAME_LENGTH: int = 14
 ## 文面の文字数の上限の検証で、どのエンディングでも超えないことを確かめる時に入れる最大の値
 ## (本編の所要時間の上限と選択肢の数の上限)
