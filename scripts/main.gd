@@ -1,7 +1,7 @@
 extends Control
 ## メインシーン。GameState の画面に合わせてタイトル・会話・バックログ・エンディングの表示を切り替え、毎フレーム
 ## 会話の時間を進める。キー入力とタップ用のボタンを GameState の操作に写すだけで、会話の進行は持たない
-## (見た目は仮の色面。関門 2 のデザインの反映で作り直す)。
+## (見た目の方向は documents/DIRECTION.md「デザインの方向」、背景と立ち絵の決め方は scripts/stage.gd)。
 
 ## autoload の GameState のスクリプト。autoload 名の識別子で参照すると、--script で起動する scripts/dev/ の検証が
 ## autoload の登録前にこのスクリプトをコンパイルして失敗するため、ノードとして取る
@@ -10,6 +10,8 @@ const GameStateScript := preload("res://scripts/game_state.gd")
 const ScenarioScript := preload("res://scripts/scenario.gd")
 ## 会話のルールの値と計算 (選択肢の制限時間、1 フレームで進める時間)
 const ConversationScript := preload("res://scripts/conversation.gd")
+## 背景と立ち絵の素材と、いま出すものの決め方
+const StageScript := preload("res://scripts/stage.gd")
 ## 入力のアクションと、GameState に送る操作
 const SCREEN_ACTIONS: Dictionary = {
 	"confirm": GameStateScript.Command.CONFIRM,
@@ -21,15 +23,18 @@ const CHOICE_ACTIONS: Array[String] = ["choice_1", "choice_2", "choice_3"]
 ## 起動検証 (make check) が確認する起動の印
 const BOOT_MESSAGE: String = "fast-galge boot"
 
-## タイトルの画面と、会話を始めるボタン
+## タイトルの画面、一枚絵、会話を始めるボタン
 @onready var title_screen: Control = $TitleScreen
+@onready var title_art: TextureRect = $TitleScreen/TitleArt
 @onready var start_button: Button = $TitleScreen/StartButton
 ## 会話中の画面
 @onready var conversation_screen: Control = $ConversationScreen
-## 立ち絵の代わりの色面と、表情の名前を出すラベル (表情を持つメッセージの間だけ出す)
-@onready var portrait: ColorRect = $ConversationScreen/Portrait
-@onready var expression_label: Label = $ConversationScreen/Portrait/Expression
-## メッセージウィンドウの話者名と本文
+## いまの場面の背景、立ち絵、立ち絵の後ろの流線 (立ち絵が流線を出すヒロインの間だけ出す)
+@onready var scene_background: TextureRect = $ConversationScreen/SceneBackground
+@onready var portrait: TextureRect = $ConversationScreen/Portrait
+@onready var speed_lines: TextureRect = $ConversationScreen/SpeedLines
+## メッセージウィンドウの名札 (話者がいる間だけ出す)、話者名、本文
+@onready var name_tag: Control = $ConversationScreen/MessageWindow/NameTag
 @onready var speaker_label: Label = $ConversationScreen/MessageWindow/Speaker
 @onready var message_label: Label = $ConversationScreen/MessageWindow/Message
 ## バックログを開くボタン
@@ -54,9 +59,12 @@ const BOOT_MESSAGE: String = "fast-galge boot"
 @onready var title_button: Button = $EndingScreen/TitleButton
 
 
-## 起動の印を出し、タップ用のボタンを GameState の操作につなぎ、GameState の画面に合わせた表示にする
+## 起動の印を出し、場面で変わらない絵を置き、タップ用のボタンを GameState の操作につなぎ、GameState の画面に合わせた
+## 表示にする
 func _ready() -> void:
 	print(BOOT_MESSAGE)
+	title_art.texture = load(StageScript.TITLE_PATH)
+	speed_lines.texture = load(StageScript.SPEED_LINES_PATH)
 	start_button.pressed.connect(_apply.bind(GameStateScript.Command.CONFIRM))
 	backlog_button.pressed.connect(_apply.bind(GameStateScript.Command.BACKLOG))
 	close_button.pressed.connect(_apply.bind(GameStateScript.Command.BACKLOG))
@@ -130,14 +138,25 @@ func _refresh() -> void:
 
 
 ## 会話中の画面を game_state の会話の進行に合わせる。メッセージウィンドウにはバックログの最新の行 (いま流れている
-## メッセージか、直前に選んだ選択肢) を出し、選択肢で止まっている間は選択肢と残り時間を出す
+## メッセージか、直前に選んだ選択肢) を出し、背景と立ち絵はバックログから決め、選択肢で止まっている間は選択肢と
+## 残り時間を出す
 func _refresh_conversation(game_state: Node) -> void:
 	var backlog: Array = game_state.backlog
 	var shown: Dictionary = backlog.back() if not backlog.is_empty() else {}
 	speaker_label.text = shown.get(ScenarioScript.SPEAKER, "")
+	name_tag.visible = not speaker_label.text.is_empty()
 	message_label.text = shown.get(ScenarioScript.TEXT, "")
-	portrait.visible = shown.has(ScenarioScript.EXPRESSION)
-	expression_label.text = shown.get(ScenarioScript.EXPRESSION, "")
+	var background: String = StageScript.shown_background(backlog)
+	_show_texture(
+		scene_background, "" if background.is_empty() else StageScript.background_path(background)
+	)
+	var portrait_line: Dictionary = StageScript.shown_portrait(backlog)
+	_show_texture(
+		portrait, "" if portrait_line.is_empty() else StageScript.portrait_path(portrait_line)
+	)
+	speed_lines.visible = (
+		not portrait_line.is_empty() and StageScript.has_speed_lines(portrait_line)
+	)
 	var options: Array = game_state.current_line().get(ScenarioScript.CHOICES, [])
 	choice_panel.visible = not options.is_empty()
 	time_bar.value = 1.0 - game_state.elapsed / ConversationScript.CHOICE_SECONDS
@@ -147,6 +166,15 @@ func _refresh_conversation(game_state: Node) -> void:
 			choice_buttons[option_index].text = (
 				"%d. %s" % [option_index + 1, options[option_index][ScenarioScript.TEXT]]
 			)
+
+
+## texture_rect に path の素材を出し、path が空なら隠す。冪等で、毎フレーム呼んでも同じ素材を読み込み直さない
+func _show_texture(texture_rect: TextureRect, path: String) -> void:
+	texture_rect.visible = not path.is_empty()
+	if texture_rect.visible and (
+		texture_rect.texture == null or texture_rect.texture.resource_path != path
+	):
+		texture_rect.texture = load(path)
 
 
 ## バックログの 1 行 (entry) を一覧に出す文にする。話者がいれば「」で囲み、地の文はそのまま出す

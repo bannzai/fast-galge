@@ -43,6 +43,13 @@ func _capture_scenes() -> bool:
 	if not await _capture("tmp/screenshot-backlog.png"):
 		return false
 	await _hold_keys([KEY_B], 1)
+	game_state.choose(0)
+	_fast_forward(
+		game_state,
+		func() -> bool: return game_state.backlog.back().get(ScenarioScript.SPEAKER, "") == "ナギ"
+	)
+	if not await _capture("tmp/screenshot-playing-nagi.png"):
+		return false
 	while game_state.is_playing():
 		_fast_forward(game_state, _is_choosing.bind(game_state))
 		game_state.choose(0)

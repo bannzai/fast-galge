@@ -10,6 +10,54 @@ const SCENES: Array[String] = [
 ]
 ## 画面と遷移表を持つ autoload のスクリプト
 const GAME_STATE_SCRIPT := preload("res://scripts/game_state.gd")
+## 背景と立ち絵の素材と、いま出すものの決め方
+const StageScript := preload("res://scripts/stage.gd")
+## 背景と立ち絵の決め方の検証 (バックログ・期待する背景・期待する立ち絵の行の、バックログの中の位置 (-1 は無し)・説明)
+const STAGE_CASES: Array[Array] = [
+	[[], "", -1, "何も流れていなければ背景も立ち絵も無い"],
+	[
+		[{"text": "a", "background": "room"}, {"text": "b", "speaker": "ヒナ", "expression": "smile"}],
+		"room",
+		1,
+		"背景を指定した行の後のヒロインの行で、背景と立ち絵が出る",
+	],
+	[
+		[
+			{"text": "a", "background": "room"},
+			{"text": "b", "speaker": "ヒナ", "expression": "smile"},
+			{"text": "c", "speaker": "ユウ"},
+			{"text": "d"},
+		],
+		"room",
+		1,
+		"主人公の台詞や地の文の間も、直前のヒロインの立ち絵が残る",
+	],
+	[
+		[
+			{"text": "a", "background": "room"},
+			{"text": "b", "speaker": "ヒナ", "expression": "smile"},
+			{"text": "c", "background": "street"},
+		],
+		"street",
+		-1,
+		"場面が変わると立ち絵が消え、新しい背景が出る",
+	],
+	[
+		[
+			{"text": "a", "background": "room"},
+			{"text": "b", "background": "street", "speaker": "ナギ", "expression": "normal"},
+		],
+		"street",
+		1,
+		"背景と表情を両方持つ行は、新しい場面の最初の立ち絵になる",
+	],
+]
+## 素材の検証で、素材が無いことを見つけるシナリオ (誤りを含む行・説明)
+const INVALID_STAGE_LINES: Array[Array] = [
+	[{"text": "a", "background": "nowhere"}, "素材の無い背景"],
+	[{"text": "a", "speaker": "ヒナ", "expression": "crying"}, "素材の無い表情"],
+	[{"text": "a", "speaker": "ユウ", "expression": "smile"}, "立ち絵の無い話者の表情"],
+]
 ## 素材の置き場所と、出典・ライセンスの記録
 const ASSETS_DIR: String = "res://assets"
 const CREDITS_PATH: String = "res://assets/CREDITS.md"
@@ -105,6 +153,7 @@ const INVALID_SCENARIOS: Array[Array] = [
 	[[{"text": "a", "label": "x"}, ENDING_LINE], "行の種類が 2 つある"],
 	[[{"text": "a", "expresion": "smile"}, ENDING_LINE], "知らないキーがある"],
 	[[{"text": ""}, ENDING_LINE], "本文が空"],
+	[[{"text": "a", "background": ""}, ENDING_LINE], "背景が空"],
 	[[{"goto": "nowhere"}, ENDING_LINE], "移動先のラベルが無い"],
 	[[{"label": "back"}, {"text": "a"}, {"goto": "back"}, ENDING_LINE], "移動先が前の行にある"],
 	[[{"label": "x"}, {"label": "x"}, ENDING_LINE], "ラベルが重複している"],
@@ -186,6 +235,7 @@ func _initialize() -> void:
 	_check_scenario_format()
 	_check_main_scenario()
 	_check_game_state_conversation()
+	_check_stage()
 	_check_scenes()
 	_check_credits()
 	if failed:
@@ -495,6 +545,46 @@ func _check_game_state_conversation() -> void:
 		"進行: 到達したエンディングが到達した順に記録される"
 	)
 	game_state.free()
+
+
+## 背景と立ち絵の検証。バックログからの決め方 (STAGE_CASES)、本編とサンプルの background・expression・話者に素材が
+## あること、素材の無い値を見つけること (INVALID_STAGE_LINES)、全素材のファイルがあること、本編が背景で始まり
+## 全背景を使うこと
+func _check_stage() -> void:
+	for case: Array in STAGE_CASES:
+		var backlog: Array = case[0]
+		_check(StageScript.shown_background(backlog) == case[1], "背景: %s" % case[3])
+		var expected_portrait: Dictionary = {} if case[2] < 0 else backlog[case[2]]
+		_check(StageScript.shown_portrait(backlog) == expected_portrait, "立ち絵: %s" % case[3])
+	var main_lines: Array = ScenarioScript.load_lines(GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS)
+	for lines: Array in [main_lines, ScenarioScript.load_lines(SAMPLE_SCENARIO_PATHS)]:
+		var errors: Array[String] = StageScript.errors(lines)
+		_check(errors.is_empty(), "素材: シナリオの背景・表情・話者に素材がある %s" % [errors])
+	for case: Array in INVALID_STAGE_LINES:
+		_check(not StageScript.errors([case[0]]).is_empty(), "素材: %sを見つける" % case[1])
+	var paths: Array[String] = [StageScript.TITLE_PATH, StageScript.SPEED_LINES_PATH]
+	for background: String in StageScript.BACKGROUNDS:
+		paths.append(StageScript.background_path(background))
+	for speaker: String in StageScript.HEROINES:
+		for expression: String in StageScript.EXPRESSIONS:
+			paths.append(
+				StageScript.portrait_path(
+					{ScenarioScript.SPEAKER: speaker, ScenarioScript.EXPRESSION: expression}
+				)
+			)
+	for path: String in paths:
+		_check(ResourceLoader.exists(path), "素材: %s がある" % path)
+	_check(
+		main_lines[0].has(ScenarioScript.BACKGROUND), "素材: 本編の最初の行が背景を指定している"
+	)
+	for background: String in StageScript.BACKGROUNDS:
+		_check(
+			main_lines.any(
+				func(line: Dictionary) -> bool:
+					return line.get(ScenarioScript.BACKGROUND, "") == background
+			),
+			"素材: 背景 %s を本編で使っている" % background
+		)
 
 
 ## 全シーンがロードできる
