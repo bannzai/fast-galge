@@ -36,10 +36,13 @@ static func message_seconds(text: String) -> float:
 	)
 
 
-## line (メッセージか選択肢の行) で表示が止まる時間 (秒)。メッセージは表示時間、選択肢は制限時間
+## line (メッセージ・選択肢・章の区切りの行) で表示が止まる時間 (秒)。メッセージは表示時間、選択肢は制限時間、
+## 章の区切りは表示されないため 0 (会話はオートセーブして通り過ぎる)
 static func stop_seconds(line: Dictionary) -> float:
 	if line.has(ScenarioScript.CHOICES):
 		return CHOICE_SECONDS
+	if line.has(ScenarioScript.CHAPTER):
+		return 0.0
 	return message_seconds(line.get(ScenarioScript.TEXT, ""))
 
 
@@ -76,7 +79,7 @@ static func meets(affection: Dictionary, required: Dictionary) -> bool:
 	return true
 
 
-## lines を from 番目の行から進めて、次に表示が止まる行 (メッセージ・選択肢・エンディング) の位置。ラベルは飛ばし、
+## lines を from 番目の行から進めて、次に止まる行 (メッセージ・選択肢・章の区切り・エンディング) の位置。ラベルは飛ばし、
 ## 移動は affection が条件を満たせば辿る。止まる行が無ければ lines.size()。
 ## 移動先が後ろの行に無い (形式の誤り) 時は次の行へ進める (前の行へ戻して終わらなくなるのを防ぐ)
 static func next_stop(lines: Array, from: int, affection: Dictionary) -> int:

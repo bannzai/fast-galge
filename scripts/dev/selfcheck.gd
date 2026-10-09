@@ -1,7 +1,8 @@
 extends "res://scripts/dev/headless_check.gd"
-## 画面の遷移表、会話エンジンの計算 (表示時間・時間切れ・好感度・分岐・所要時間)、シナリオの形式、本編 (5 つのエンディングへの
-## 到達・各ルートの所要時間・共通パートの分岐)、GameState の会話の進行、全シーンのロード、全素材が assets/CREDITS.md に
-## 記録されていることの検証 (headless)。
+## 画面の遷移表、会話エンジンの計算 (表示時間・時間切れ・好感度・分岐・章の区切り・所要時間)、シナリオの形式、本編 (5 つの
+## エンディングへの到達・各ルートの所要時間・共通パートの分岐・章の区切りの数)、GameState の会話の進行 (章の区切りでの
+## オートセーブと「つづきから」の再開を含む)、保存データの読み書きと壊れたデータの扱い、全シーンのロード、全素材が
+## assets/CREDITS.md に記録されていることの検証 (headless)。
 ## 実行方法は AGENTS.md を参照。release ビルドで assert が消えるため、明示的な判定と exit code で結果を返す。
 
 ## 起動検証 (main_scene の --quit) ではロードされない遷移先も含めた全シーン
@@ -10,6 +11,16 @@ const SCENES: Array[String] = [
 ]
 ## 画面と遷移表を持つ autoload のスクリプト
 const GAME_STATE_SCRIPT := preload("res://scripts/game_state.gd")
+## 保存データの autoload のスクリプト
+const SAVE_DATA_SCRIPT := preload("res://scripts/save_data.gd")
+## 保存・読み込みの検証で書き出す保存データ。プレイヤーの保存データ (user://) を書き換えないよう tmp/ に置く
+const SAVE_TEST_PATH: String = "res://tmp/selfcheck-save.json"
+## 保存データの解釈の検証で、壊れたデータとして扱う文字列
+const BROKEN_SAVE_TEXTS: Array[String] = [
+	"", "{", "not json", "[1, 2]", "42", '{"version": 2}', '{"version": "1"}', "{}"
+]
+## ファイルの読み書きの検証で、壊れた保存データとして書き込む中身 (途中で切れた JSON)
+const BROKEN_SAVE_FILE_TEXT: String = '{"version": 1, "chapter": "route_'
 ## 素材の置き場所と、出典・ライセンスの記録
 const ASSETS_DIR: String = "res://assets"
 const CREDITS_PATH: String = "res://assets/CREDITS.md"
@@ -55,6 +66,24 @@ const TRANSITION_CASES: Array[Array] = [
 		GAME_STATE_SCRIPT.Command.CONFIRM,
 		GAME_STATE_SCRIPT.Screen.TITLE,
 		"エンディングで決定するとタイトルに戻る",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		GAME_STATE_SCRIPT.Command.CONTINUE,
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		"タイトルのつづきからで会話中になる",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		GAME_STATE_SCRIPT.Command.CONTINUE,
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		"会話中のつづきからでは画面が変わらない",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.ENDING,
+		GAME_STATE_SCRIPT.Command.CONTINUE,
+		GAME_STATE_SCRIPT.Screen.ENDING,
+		"エンディングのつづきからでは画面が変わらない",
 	],
 ]
 ## メッセージの表示時間の検証 (本文の文字数・期待する秒数)。10 文字以下は下限、20 文字以上は上限に張り付く
@@ -150,7 +179,26 @@ const INVALID_SCENARIOS: Array[Array] = [
 		"分岐先を持つ選択肢があるのに時間切れの分岐先が無い",
 	],
 	[[{"ending": "end"}], "エンディング名と一言が無い"],
+	[[{"chapter": ""}, ENDING_LINE], "章の区切りの ID が空"],
+	[[{"chapter": "c", "text": "a"}, ENDING_LINE], "章の区切りに本文がある"],
+	[[{"chapter": "c"}, {"chapter": "c"}, ENDING_LINE], "章の区切りの ID が重複している"],
 ]
+## 章の区切りの検証に使うシナリオ。選択肢の後に章の区切りがあり、章の区切りの次のメッセージから再開できる
+const CHAPTER_LINES: Array = [
+	{"text": "ああああああああああ"},
+	{
+		"choices": [
+			{"text": "up", "affection": {"a": 1}},
+			{"text": "down", "affection": {"a": -1}},
+		],
+	},
+	{"label": "merge"},
+	{"chapter": "second"},
+	{"text": "ああああああああああ"},
+	{"ending": "end", "name": "end", "summary": "end"},
+]
+## 本編のルートに入る周で通る章の区切りの数の下限 (ルートの始まり = 共通パートの終わりと、ルートの中間)
+const ROUTE_MIN_CHAPTERS: int = 2
 ## 本編のルートに入る周 (共通パート + どちらかのヒロインのルート) の所要時間の範囲 (秒)。共通パート 1 分 + ルート 5 分前後
 ## (documents/PROJECT.md「登場人物とシナリオの規模」) に対し、4〜7 分に収める
 const MAIN_MIN_SECONDS: float = 240.0
@@ -183,9 +231,12 @@ func _initialize() -> void:
 	_check_transitions()
 	_check_message_seconds()
 	_check_branch()
+	_check_chapter()
 	_check_scenario_format()
 	_check_main_scenario()
 	_check_game_state_conversation()
+	_check_save_parse()
+	_check_save_file()
 	_check_scenes()
 	_check_credits()
 	if failed:
@@ -279,6 +330,27 @@ func _check_branch() -> void:
 		_check(result["ending"].get("ending") == case[3], "通しのエンディング: %s" % case[4])
 
 
+## 章の区切りの計算の検証 (CHAPTER_LINES)。止まる行として扱い、所要時間に数えず、ID から位置を引ける
+func _check_chapter() -> void:
+	_check(ScenarioScript.validate(CHAPTER_LINES).is_empty(), "章の区切りの検証用のシナリオは形式が正しい")
+	_check(ScenarioScript.kind(CHAPTER_LINES[3]) == ScenarioScript.CHAPTER, "章の区切り: 行の種類が chapter")
+	_check(ScenarioScript.chapter_index(CHAPTER_LINES, "second") == 3, "章の区切り: ID から位置を引ける")
+	_check(ScenarioScript.chapter_index(CHAPTER_LINES, "none") == -1, "章の区切り: 無い ID は -1")
+	_check(ScenarioScript.chapter_index(CHAPTER_LINES, "merge") == -1, "章の区切り: ラベルの名前とは別")
+	_check(ConversationScript.next_stop(CHAPTER_LINES, 2, {}) == 3, "章の区切り: ラベルは飛ばして章の区切りで止まる")
+	_check(
+		is_equal_approx(ConversationScript.stop_seconds(CHAPTER_LINES[3]), 0.0),
+		"章の区切り: 止まる時間は 0"
+	)
+	var result: Dictionary = ConversationScript.playthrough(
+		CHAPTER_LINES, func(_choice: Dictionary) -> int: return 0
+	)
+	_check(
+		is_equal_approx(result["seconds"], 2.8) and result["ending"].get("ending") == "end",
+		"章の区切り: 所要時間に数えずエンディングに着く"
+	)
+
+
 ## シナリオの形式の検証。scenario/ の全ファイルが検証の対象 (サンプルか本編) に入っていて形式が正しいことと、
 ## 形式の誤り (INVALID_SCENARIOS) を見つけること
 func _check_scenario_format() -> void:
@@ -337,7 +409,28 @@ func _check_main_scenario() -> void:
 			result,
 			picked.filter(func(pick: int) -> bool: return pick != ConversationScript.TIMEOUT).size()
 		)
+	_check_route_chapters(lines)
 	_check_route_split(ScenarioScript.load_lines([GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS[0]]))
+
+
+## 本編の各ルート (ROUTE_LABELS) に章の区切りが ROUTE_MIN_CHAPTERS 箇所以上あること。ルートの範囲は、そのルートの
+## ラベルから次のルート (または共通 bad) のラベルの前まで
+func _check_route_chapters(lines: Array) -> void:
+	var starts: Array[int] = []
+	for heroine: String in ROUTE_LABELS:
+		starts.append(ScenarioScript.label_index(lines, ROUTE_LABELS[heroine]))
+	starts.append(ScenarioScript.label_index(lines, COMMON_BAD))
+	for route_index: int in range(starts.size() - 1):
+		var chapters: int = lines.slice(starts[route_index], starts[route_index + 1]).filter(
+			func(line: Dictionary) -> bool: return line.has(ScenarioScript.CHAPTER)
+		).size()
+		_check(
+			chapters >= ROUTE_MIN_CHAPTERS,
+			(
+				"本編: %s のルートに章の区切りが %d 箇所以上 (%d 箇所)"
+				% [ROUTE_LABELS.keys()[route_index], ROUTE_MIN_CHAPTERS, chapters]
+			)
+		)
 
 
 ## 本編を GameState で case の進め方 (選択肢が出たらすぐ選ぶ) で最後まで進めた時の所要時間・好感度・エンディングが、
@@ -429,11 +522,21 @@ func _pick_combinations(choices: Array) -> Array:
 	return combinations
 
 
-## GameState の会話の進行の検証 (サンプルシナリオ)。自動送り・バックログの間の停止・選択・時間切れ・エンディングの記録・
-## やり直した時の初期化
+## GameState の会話の進行の検証 (サンプルシナリオ)。自動送り・バックログの間の停止・選択・時間切れ・章の区切りでの
+## オートセーブ・エンディングの記録・やり直した時の初期化・「つづきから」の再開。保存先は tmp/ の検証用のファイル
 func _check_game_state_conversation() -> void:
+	var path: String = ProjectSettings.globalize_path(SAVE_TEST_PATH)
+	_remove_save_files(path)
+	var saver: Node = SAVE_DATA_SCRIPT.new()
+	saver.load_from(path)
 	var game_state: Node = GAME_STATE_SCRIPT.new()
+	game_state.save_data = saver
 	game_state.scenario_paths = SAMPLE_SCENARIO_PATHS
+	_check(
+		not game_state.can_continue() and not game_state.apply(GAME_STATE_SCRIPT.Command.CONTINUE),
+		"つづきから: 保存が無ければ再開できず、タイトルのまま"
+	)
+	_check(game_state.screen == GAME_STATE_SCRIPT.Screen.TITLE, "つづきから: 保存が無ければ画面はタイトルのまま")
 	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
 	_check(
 		game_state.position == 0 and game_state.backlog.size() == 1,
@@ -458,6 +561,18 @@ func _check_game_state_conversation() -> void:
 		game_state.backlog[4]["text"] == game_state.lines[4]["choices"][0]["text"],
 		"進行: 選んだ選択肢がバックログに積まれる"
 	)
+	_check(not saver.has_progress(), "オートセーブ: 章の区切りを通るまでは保存されない")
+	var chapter: int = ScenarioScript.chapter_index(game_state.lines, "sample_after")
+	_fast_forward(game_state, func() -> bool: return game_state.position > chapter)
+	_check(
+		saver.chapter == "sample_after" and saver.affection == {"hina": 1},
+		"オートセーブ: 章の区切りを通ると章の ID と好感度が保存される"
+	)
+	_check(
+		game_state.position == chapter + 1 and game_state.backlog.back() == game_state.lines[chapter + 1],
+		"オートセーブ: 章の区切りの行では止まらず次のメッセージに進む"
+	)
+	_check(FileAccess.file_exists(path), "オートセーブ: 保存データのファイルが書かれる")
 	_fast_forward(game_state, func() -> bool: return false)
 	_check(
 		(
@@ -491,10 +606,183 @@ func _check_game_state_conversation() -> void:
 		"進行: 時間切れの「……」がバックログに積まれる"
 	)
 	_check(
-		game_state.reached_endings == ["sample_good", "sample_bad"],
-		"進行: 到達したエンディングが到達した順に記録される"
+		saver.reached_endings == ["sample_good", "sample_bad"] and saver.is_cleared(),
+		"進行: 到達したエンディングが到達した順に記録され、クリア済みになる"
+	)
+	var timed_out: Dictionary = {"hina": ConversationScript.TIMEOUT_AFFECTION}
+	_check(
+		saver.chapter == "sample_after" and saver.affection == timed_out,
+		"オートセーブ: やり直して章の区切りを通ると上書きされる"
+	)
+	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
+	_check(game_state.can_continue(), "つづきから: 章の区切りの保存があれば再開できる")
+	var loader: Node = SAVE_DATA_SCRIPT.new()
+	loader.load_from(path)
+	game_state.save_data = loader
+	_check(game_state.apply(GAME_STATE_SCRIPT.Command.CONTINUE), "つづきから: 読み込み直した保存データから再開できる")
+	_check(
+		game_state.is_playing() and game_state.position == chapter + 1 and game_state.backlog.size() == 1,
+		"つづきから: 保存した章の区切りの次のメッセージから始まる"
+	)
+	_check(game_state.affection == timed_out, "つづきから: 保存した好感度で再開する")
+	_check(loader.chapter == "sample_after", "つづきから: 再開しても章の区切りの保存は消えない")
+	_fast_forward(game_state, func() -> bool: return false)
+	_check(
+		game_state.current_line().get("ending") == "sample_bad",
+		"つづきから: 再開した好感度でエンディングに着く"
+	)
+	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
+	loader.chapter = "unknown_chapter"
+	_check(game_state.apply(GAME_STATE_SCRIPT.Command.CONTINUE), "つづきから: 保存した章がシナリオに無くても会話中になる")
+	_check(
+		game_state.position == 0 and game_state.affection.is_empty(),
+		"つづきから: 保存した章がシナリオに無ければ最初から始まる"
 	)
 	game_state.free()
+	saver.free()
+	loader.free()
+	_remove_save_files(path)
+
+
+## 保存データの文字列の解釈。壊れたデータ (JSON でない・形が違う・版が違う) と、一部の値だけがおかしいデータ
+func _check_save_parse() -> void:
+	for broken_text: String in BROKEN_SAVE_TEXTS:
+		var broken: Dictionary = SAVE_DATA_SCRIPT.parse(broken_text)
+		_check(broken["broken"], "保存データ: %s は壊れたデータとして扱う" % broken_text)
+		_check(
+			(
+				broken["chapter"] == ""
+				and broken["affection"].is_empty()
+				and broken["reached_endings"].is_empty()
+			),
+			"保存データ: 壊れたデータ %s は既定値にする" % broken_text
+		)
+	var empty: Dictionary = SAVE_DATA_SCRIPT.parse('{"version": 1}')
+	_check(
+		not empty["broken"] and empty["chapter"] == "" and empty["reached_endings"].is_empty(),
+		"保存データ: 版だけのデータは壊れていない既定値"
+	)
+	var endings: Array[String] = ["hina_good"]
+	var text: String = SAVE_DATA_SCRIPT.serialize("route_hina_autumn", {"hina": 2}, endings)
+	var loaded: Dictionary = SAVE_DATA_SCRIPT.parse(text)
+	_check(not loaded["broken"], "保存データ: 書き出したデータを読める")
+	_check(loaded["chapter"] == "route_hina_autumn", "保存データ: 章の区切りを読み戻せる")
+	_check(loaded["affection"] == {"hina": 2}, "保存データ: 好感度を整数で読み戻せる")
+	_check(loaded["reached_endings"] == endings, "保存データ: 到達したエンディングを読み戻せる")
+	var rewritten: String = SAVE_DATA_SCRIPT.serialize(
+		loaded["chapter"], loaded["affection"], loaded["reached_endings"]
+	)
+	_check(rewritten == text, "保存データ: 読み戻した値から同じ文字列を書き出す")
+	var partial: Dictionary = SAVE_DATA_SCRIPT.parse(
+		JSON.stringify(
+			{
+				"version": 1,
+				"chapter": 3,
+				"affection": {"hina": 1.5},
+				"reached_endings": ["hina_bad", 1, "hina_bad", "", null],
+			}
+		)
+	)
+	_check(not partial["broken"], "保存データ: 一部の値だけがおかしいデータは壊れたデータとしない")
+	_check(partial["chapter"] == "", "保存データ: 文字列でない章の区切りは無し")
+	_check(partial["affection"].is_empty(), "保存データ: 整数でない好感度は空")
+	_check(
+		partial["reached_endings"] == ["hina_bad"],
+		"保存データ: 文字列でない・空・重複したエンディングは捨てる"
+	)
+
+
+## ファイルへの保存と読み込み、壊れたファイルの退避。tree に入れない SaveData のインスタンスで行う
+func _check_save_file() -> void:
+	var path: String = ProjectSettings.globalize_path(SAVE_TEST_PATH)
+	var broken_path: String = path + SAVE_DATA_SCRIPT.BROKEN_SUFFIX
+	_remove_save_files(path)
+	var saver: Node = SAVE_DATA_SCRIPT.new()
+	saver.load_from(path)
+	_check(not saver.loaded_broken, "保存: 保存データが無ければ壊れていない扱いで始める")
+	_check(not saver.has_progress() and not saver.is_cleared(), "保存: 保存データが無ければ途中の保存もクリアも無い")
+	saver.record_chapter("route_hina_spring", {"hina": 1})
+	_check(FileAccess.file_exists(path), "保存: 章の区切りを記録すると保存データを書き出す")
+	saver.record_chapter("route_hina_autumn", {"hina": 2})
+	saver.record_ending("hina_good")
+	saver.record_ending("hina_good")
+	var endings: Array[String] = ["hina_good"]
+	_check(saver.reached_endings == endings, "保存: 同じエンディングを 2 度記録しても 1 つ")
+	var written: String = FileAccess.get_file_as_string(path)
+	_check(saver.save() == OK, "保存: もう一度保存できる")
+	_check(FileAccess.get_file_as_string(path) == written, "保存: 同じ内容なら同じファイルになる")
+	saver.free()
+
+	var loader: Node = SAVE_DATA_SCRIPT.new()
+	loader.load_from(path)
+	_check(not loader.loaded_broken, "読み込み: 書き出した保存データは壊れていない")
+	_check(loader.chapter == "route_hina_autumn", "読み込み: 最後に記録した章の区切りを読み戻す")
+	_check(loader.affection == {"hina": 2}, "読み込み: 好感度を読み戻す")
+	_check(loader.reached_endings == endings and loader.is_cleared(), "読み込み: 到達したエンディングを読み戻す")
+
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(BROKEN_SAVE_FILE_TEXT)
+	file.close()
+	loader.load_from(path)
+	_check(loader.loaded_broken, "壊れた保存データ: 読めないファイルを壊れたと判定する")
+	_check(
+		not loader.has_progress() and loader.affection.is_empty() and not loader.is_cleared(),
+		"壊れた保存データ: 既定値で始める"
+	)
+	_check(
+		FileAccess.file_exists(path) and not FileAccess.file_exists(broken_path),
+		"壊れた保存データ: 読み込みでは元のファイルを動かさない"
+	)
+	loader.load_from(path)
+	_check(loader.loaded_broken, "壊れた保存データ: 読み込み直しても壊れた判定のまま (読み込みは冪等)")
+	_check(loader.save() == OK and not loader.loaded_broken, "壊れた保存データ: 保存し直すと知らせを消す")
+	_check(
+		FileAccess.get_file_as_string(broken_path) == BROKEN_SAVE_FILE_TEXT,
+		"壊れた保存データ: 保存する時に元のファイルを退避し、中身をそのまま残す"
+	)
+	loader.load_from(path)
+	_check(
+		not loader.loaded_broken and not loader.has_progress() and not loader.is_cleared(),
+		"壊れた保存データ: 保存し直した後の読み込みは既定値で壊れていない"
+	)
+
+	var writing_path: String = path + SAVE_DATA_SCRIPT.WRITING_SUFFIX
+	_remove_file(path)
+	var writing: FileAccess = FileAccess.open(writing_path, FileAccess.WRITE)
+	writing.store_string(SAVE_DATA_SCRIPT.serialize("route_hina_spring", {"hina": 1}, endings))
+	writing.close()
+	loader.load_from(path)
+	_check(
+		loader.chapter == "route_hina_spring" and loader.reached_endings == endings,
+		"書きかけの保存データ: 保存先が無く書き終えたファイルだけが残っていれば、それを読む"
+	)
+	_check(
+		not FileAccess.file_exists(path) and FileAccess.file_exists(writing_path),
+		"書きかけの保存データ: 読み込みでは書きかけを動かさない"
+	)
+	_check(
+		loader.save() == OK and FileAccess.file_exists(path) and not FileAccess.file_exists(writing_path),
+		"書きかけの保存データ: 次の保存で保存先へ書き直す"
+	)
+	_remove_file(path)
+	writing = FileAccess.open(writing_path, FileAccess.WRITE)
+	writing.store_string(BROKEN_SAVE_FILE_TEXT)
+	writing.close()
+	loader.load_from(path)
+	_check(
+		not loader.loaded_broken and not loader.has_progress() and FileAccess.file_exists(writing_path),
+		"書きかけの保存データ: 壊れた書きかけは動かさず既定値で始める"
+	)
+	loader.free()
+	_remove_save_files(path)
+
+
+## path の保存データと、退避したファイル・書き出し途中のファイルを消す (前の実行が途中で止まっていても、保存データが
+## 無い状態から検証を始めるため)
+func _remove_save_files(path: String) -> void:
+	_remove_file(path)
+	_remove_file(path + SAVE_DATA_SCRIPT.BROKEN_SUFFIX)
+	_remove_file(path + SAVE_DATA_SCRIPT.WRITING_SUFFIX)
 
 
 ## 全シーンがロードできる

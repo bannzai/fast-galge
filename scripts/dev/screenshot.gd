@@ -20,10 +20,12 @@ func _run() -> void:
 		quit(0)
 
 
-## 代表画面を、本編を早送りしながら順に撮影する。
+## 代表画面を、本編を早送りしながら順に撮影する。最後はエンディングからタイトルへ戻り、章の区切りを通った後の
+## タイトル (「つづきから」が出ている) を撮る。
 ## 失敗した撮影は _capture() が quit(1) 済みなので、false を受けたらそのまま抜ける
 func _capture_scenes() -> bool:
 	var game_state: Node = root.get_node("GameState")
+	_isolate_save("screenshot")
 	var main: Control = _add_main()
 	await create_timer(SETTLE_TIME).timeout
 	if not await _capture("tmp/screenshot-title.png"):
@@ -43,14 +45,22 @@ func _capture_scenes() -> bool:
 	if not await _capture("tmp/screenshot-backlog.png"):
 		return false
 	await _hold_keys([KEY_B], 1)
+	if not await _capture_ending_and_title(game_state):
+		return false
+	main.queue_free()
+	await process_frame
+	return true
+
+
+## 本編の残りを 1 つ目の選択肢で早送りしてエンディングを撮り、タイトルへ戻って「つづきから」が出たタイトルを撮る
+func _capture_ending_and_title(game_state: Node) -> bool:
 	while game_state.is_playing():
 		_fast_forward(game_state, _is_choosing.bind(game_state))
 		game_state.choose(0)
 	if not await _capture("tmp/screenshot-ending.png"):
 		return false
-	main.queue_free()
-	await process_frame
-	return true
+	await _hold_keys([KEY_ENTER], 1)
+	return await _capture("tmp/screenshot-title-continue.png")
 
 
 ## 選択肢で止まっている画面を撮影する。撮影は実時間で進むため、描画を待つ間に制限時間が切れていたら (撮れたのが
