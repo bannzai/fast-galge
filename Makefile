@@ -22,11 +22,20 @@ MOVIE_FRAMES ?= 300
 # 引数のログ (target の標準出力・標準エラーの保存先と、--log-file の Godot 自身のログ) がすべて存在して空でなく、
 # 全文に WARNING / ERROR の行が無いことを検査する。Godot は診断を記録しても exit 0 で終わることがあるため、exit code
 # だけで判定しない。ログが無いと grep が何も出さずに検査が通ってしまうため、先に存在を確かめる (--log-file が効かずに
-# Godot のログが書かれなかった時に気づくため)。描画付き起動だけで出る既知のノイズ (WINDOWED_LOG_NOISE) は除く
+# Godot のログが書かれなかった時に気づくため)。描画付き起動だけで出る既知のノイズ (WINDOWED_LOG_NOISE) と、2 番目の
+# 引数に渡した grep の -e の並び (target 固有の既知のノイズ) は除く
 define check_clean_log
 for log in $(1); do test -s "$$log" || { echo "ログがありません: $$log"; exit 1; }; done
-! grep -i -e 'WARNING' -e 'ERROR' $(1) | grep -v $(WINDOWED_LOG_NOISE) | grep -q .
+! grep -i -e 'WARNING' -e 'ERROR' $(1) | grep -v $(WINDOWED_LOG_NOISE) $(2) | grep -q .
 endef
+# プロジェクトの既定フォント (project.godot の gui/theme/custom_font と同じファイル)
+PROJECT_FONT := assets/fonts/NotoSansJP-Regular.otf
+# .godot/ が無い状態 (clone 直後・CI) の import でだけ出る行。Godot は import の前に既定フォントを読もうとし、まだ
+# import されていないフォントを読めずにエラーを出す。文言は .import の有無で変わる (無ければ「No loader found」、
+# あれば import 済みの .fontdata の「Cannot open file」「Failed loading resource」) ため、フォントのパスと最後の
+# 「Error loading custom project font」で除く。import 自体は続いて成功し、以降の起動 (check / selfcheck / 撮影 /
+# エクスポート) ではフォントを読めるため、フォントが壊れていればそちらのログ検査で失敗する
+IMPORT_LOG_NOISE := -e '$(notdir $(PROJECT_FONT))' -e 'Error loading custom project font'
 
 # 引数なしの make は人が手で遊んで確かめる入口 (run)。lint・検証・エクスポートは CI が行う
 .DEFAULT_GOAL := run
@@ -42,7 +51,7 @@ import: $(LOG_DIR)/.gdignore
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --import > $(LOG_DIR)/import.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/import.log; \
 	tail -n 1 $(LOG_DIR)/import.log | grep -q '^exit=0$$'
-	$(call check_clean_log,$(LOG_DIR)/import.log $(LOG_DIR)/import.godot.log)
+	$(call check_clean_log,$(LOG_DIR)/import.log $(LOG_DIR)/import.godot.log,$(IMPORT_LOG_NOISE))
 
 # 起動検証。メインシーンとスクリプトがロードでき、_ready が走ることを boot 出力で確認する
 check: import
@@ -108,11 +117,20 @@ movie: import
 run: import
 	"$(GODOT)" $(ENGINE_LOG) --path .
 
-# 引数の pck に scenario/ の全ファイルが入っていることを検査する。JSON はスクリプトから参照されないデータで、
-# export_presets.cfg の include_filter から漏れると、headless の検証は通るのにエクスポートしたゲームだけ会話が
-# 始まらなくなるため (macOS は pck が zip の中の .app に入るため検査しない)
-define check_scenario_in_pck
-for scenario in $(wildcard scenario/*.json); do grep -qa "$$scenario" $(1) || { echo "pck にシナリオがありません: $$scenario"; exit 1; }; done
+# 引数の pck に scenario/ の全ファイルと、同梱フォントとそのライセンス文が入っていることを検査する。JSON と
+# ライセンス文はスクリプトから参照されないデータで、export_presets.cfg の include_filter から漏れると、headless の
+# 検証は通るのにエクスポートしたゲームだけ会話が始まらない・ライセンス文を同梱せずに配布することになる。フォントは
+# Web ビルドがシステムフォントを使えず、入っていないと日本語が表示されないため (macOS は pck が zip の中の .app に
+# 入るため検査しない)。
+# フォントのパスは pck の中では .import の参照にしか一致しないため、import 済みのデータ
+# (.godot/imported/<ファイル名>-<hash>.fontdata) も確かめる。このパスは .import の中身 ([remap] の path) に 1 回現れるため、
+# ファイル一覧の項目と合わせて 2 回以上現れることで格納を判定する
+PCK_REQUIRED_FILES := $(wildcard scenario/*.json) $(PROJECT_FONT) assets/fonts/OFL.txt
+PCK_FONT_DATA := .godot/imported/$(notdir $(PROJECT_FONT))-
+define check_files_in_pck
+for file in $(PCK_REQUIRED_FILES); do grep -qa "$$file" $(1) || { echo "pck にファイルがありません: $$file"; exit 1; }; echo "pck に格納: $$file"; done
+test "$$(grep -ao '$(PCK_FONT_DATA)' $(1) | wc -l)" -ge 2 || { echo "pck にフォントのデータがありません: $(PCK_FONT_DATA)<hash>.fontdata"; exit 1; }
+echo "pck に格納: $(PCK_FONT_DATA)<hash>.fontdata"
 endef
 
 # エクスポート。プリセット名は export_presets.cfg と一致させる。実行には Godot 4.7 の各プラットフォームの export template が
@@ -129,7 +147,7 @@ build-web: import
 	test -f build/web/index.html
 	test -f build/web/index.wasm
 	test -f build/web/index.pck
-	$(call check_scenario_in_pck,build/web/index.pck)
+	$(call check_files_in_pck,build/web/index.pck)
 
 build-macos: import
 	@mkdir -p build/macos
@@ -149,7 +167,7 @@ build-windows: import
 	$(call check_clean_log,$(LOG_DIR)/build-windows.log $(LOG_DIR)/build-windows.godot.log)
 	test -f build/windows/fast-galge.exe
 	test -f build/windows/fast-galge.pck
-	$(call check_scenario_in_pck,build/windows/fast-galge.pck)
+	$(call check_files_in_pck,build/windows/fast-galge.pck)
 
 build-linux: import
 	@mkdir -p build/linux
@@ -160,7 +178,7 @@ build-linux: import
 	$(call check_clean_log,$(LOG_DIR)/build-linux.log $(LOG_DIR)/build-linux.godot.log)
 	test -f build/linux/fast-galge.x86_64
 	test -f build/linux/fast-galge.pck
-	$(call check_scenario_in_pck,build/linux/fast-galge.pck)
+	$(call check_files_in_pck,build/linux/fast-galge.pck)
 
 # Steam に提出するデスクトップ 3 プラットフォームの一括エクスポート
 build-all: build-macos build-windows build-linux
