@@ -61,7 +61,7 @@ func _capture_scenes() -> bool:
 	if not await _capture("tmp/screenshot-backlog.png"):
 		return false
 	await _hold_keys([KEY_B], 1)
-	if not await _capture_ending_and_title(game_state, main):
+	if not await _capture_rest(game_state, main):
 		return false
 	main.queue_free()
 	await process_frame
@@ -81,10 +81,18 @@ func _capture_title_and_menus() -> bool:
 	return true
 
 
-## 本編の残りを 1 つ目の選択肢で早送りしてエンディングと結果の画像を撮り、共有の操作の保存を通してから、タイトルへ戻って
-## 「つづきから」が出たタイトルを撮り、エンディング一覧を開いて撮り、最後にゆっくりモードで始めて文字を出している途中の
-## 会話を撮る (ゆっくりモードでは時間で会話が進まないため _fast_forward を使わない)
-func _capture_ending_and_title(game_state: Node, main: Control) -> bool:
+## 本編の残りを 1 つ目の選択肢で早送りし、2 人目のヒロイン (ナギ) の立ち絵が出た画面と、エンディングと結果の画像を撮り、
+## 共有の操作の保存を通してから、タイトルへ戻って「つづきから」が出たタイトルを撮り、エンディング一覧を開いて撮り、最後に
+## ゆっくりモードで始めて文字を出している途中の会話を撮る (ゆっくりモードでは時間で会話が進まないため _fast_forward を
+## 使わない)
+func _capture_rest(game_state: Node, main: Control) -> bool:
+	game_state.choose(0)
+	_fast_forward(
+		game_state,
+		func() -> bool: return game_state.backlog.back().get(ScenarioScript.SPEAKER, "") == "ナギ"
+	)
+	if not await _capture("tmp/screenshot-playing-nagi.png"):
+		return false
 	while game_state.is_playing():
 		_fast_forward(game_state, _is_choosing.bind(game_state))
 		game_state.choose(0)
