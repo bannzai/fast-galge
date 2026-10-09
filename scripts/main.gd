@@ -1,6 +1,6 @@
 extends Control
-## メインシーン。GameState の画面に合わせてタイトル・会話・バックログ・エンディングの表示を切り替え、毎フレーム
-## 会話の時間を進める。キー入力とタップ用のボタンを GameState の操作に写すだけで、会話の進行は持たない
+## メインシーン。GameState の画面に合わせてタイトル・会話・バックログ・エンディング・エンディング一覧の表示を切り替え、
+## 毎フレーム会話の時間を進める。キー入力とタップ用のボタンを GameState の操作に写すだけで、会話の進行は持たない
 ## (見た目は仮の色面。関門 2 のデザインの反映で作り直す)。
 
 ## autoload の GameState のスクリプト。autoload 名の識別子で参照すると、--script で起動する scripts/dev/ の検証が
@@ -15,19 +15,27 @@ const SCREEN_ACTIONS: Dictionary = {
 	"confirm": GameStateScript.Command.CONFIRM,
 	"backlog": GameStateScript.Command.BACKLOG,
 	"continue": GameStateScript.Command.CONTINUE,
+	"ending_list": GameStateScript.Command.ENDINGS,
 }
+## ゆっくりモードを切り替える入力のアクション
+const SLOW_MODE_ACTION: String = "slow_mode"
 ## 選択肢を選ぶ入力のアクション (並び順が選択肢の番号)
 const CHOICE_ACTIONS: Array[String] = ["choice_1", "choice_2", "choice_3"]
 
 ## 起動検証 (make check) が確認する起動の印
 const BOOT_MESSAGE: String = "fast-galge boot"
 
-## タイトルの画面、会話を最初から始めるボタン、保存した章から再開するボタン (途中の保存がある間だけ出す)
+## タイトルの画面、会話を最初から始めるボタン、保存した章から再開するボタン (途中の保存がある間だけ出す)、
+## エンディング一覧を開くボタン、ゆっくりモードを切り替えるボタン (クリア済みの間だけ出す)
 @onready var title_screen: Control = $TitleScreen
 @onready var start_button: Button = $TitleScreen/StartButton
 @onready var continue_button: Button = $TitleScreen/ContinueButton
-## 会話中の画面
+@onready var endings_button: Button = $TitleScreen/EndingsButton
+@onready var slow_mode_button: Button = $TitleScreen/SlowModeButton
+## 会話中の画面と、ゆっくりモードでメッセージを送るタップを受ける、画面全体の透明なボタン
+## (立ち絵とメッセージウィンドウより手前、ログと選択肢のボタンより奥に置く)
 @onready var conversation_screen: Control = $ConversationScreen
+@onready var send_area: Button = $ConversationScreen/SendArea
 ## 立ち絵の代わりの色面と、表情の名前を出すラベル (表情を持つメッセージの間だけ出す)
 @onready var portrait: ColorRect = $ConversationScreen/Portrait
 @onready var expression_label: Label = $ConversationScreen/Portrait/Expression
@@ -54,6 +62,11 @@ const BOOT_MESSAGE: String = "fast-galge boot"
 @onready var ending_name_label: Label = $EndingScreen/Name
 @onready var ending_summary_label: Label = $EndingScreen/Summary
 @onready var title_button: Button = $EndingScreen/TitleButton
+## エンディング一覧の画面、見たエンディングの数、一覧の本文、閉じるボタン
+@onready var endings_screen: Control = $EndingsScreen
+@onready var endings_count_label: Label = $EndingsScreen/Count
+@onready var endings_label: Label = $EndingsScreen/Entries
+@onready var endings_close_button: Button = $EndingsScreen/CloseButton
 
 
 ## 起動の印を出し、タップ用のボタンを GameState の操作につなぎ、GameState の画面に合わせた表示にする
@@ -61,9 +74,13 @@ func _ready() -> void:
 	print(BOOT_MESSAGE)
 	start_button.pressed.connect(_apply.bind(GameStateScript.Command.CONFIRM))
 	continue_button.pressed.connect(_apply.bind(GameStateScript.Command.CONTINUE))
+	endings_button.pressed.connect(_apply.bind(GameStateScript.Command.ENDINGS))
+	slow_mode_button.pressed.connect(_toggle_slow_mode)
+	send_area.pressed.connect(_apply.bind(GameStateScript.Command.CONFIRM))
 	backlog_button.pressed.connect(_apply.bind(GameStateScript.Command.BACKLOG))
 	close_button.pressed.connect(_apply.bind(GameStateScript.Command.BACKLOG))
 	title_button.pressed.connect(_apply.bind(GameStateScript.Command.CONFIRM))
+	endings_close_button.pressed.connect(_apply.bind(GameStateScript.Command.ENDINGS))
 	for option_index: int in range(choice_buttons.size()):
 		choice_buttons[option_index].pressed.connect(_choose.bind(option_index))
 	_refresh()
@@ -84,6 +101,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_apply(SCREEN_ACTIONS[action])
 			get_viewport().set_input_as_handled()
 			return
+	if event.is_action_pressed(SLOW_MODE_ACTION):
+		_toggle_slow_mode()
+		get_viewport().set_input_as_handled()
+		return
 	for option_index: int in range(CHOICE_ACTIONS.size()):
 		if event.is_action_pressed(CHOICE_ACTIONS[option_index]):
 			_choose(option_index)
@@ -96,14 +117,28 @@ func _game_state() -> Node:
 	return get_tree().root.get_node_or_null("GameState")
 
 
-## command を GameState に送り、画面が移ったら表示を更新する。バックログを開いた時は一覧を最新の行まで送る
+## command を GameState に送り、画面が移ったら表示を更新する。バックログを開いた時は一覧を最新の行まで送り、
+## エンディング一覧を開いた時は一覧を作る。会話中の決定 (画面は移らない) はゆっくりモードのメッセージ送りにする
 func _apply(command: GameStateScript.Command) -> void:
 	var game_state: Node = _game_state()
-	if game_state == null or not game_state.apply(command):
+	if game_state == null:
 		return
+	if not game_state.apply(command):
+		if command == GameStateScript.Command.CONFIRM and game_state.send():
+			_refresh()
+		return
+	if game_state.screen == GameStateScript.Screen.ENDINGS:
+		_fill_endings(game_state.ending_list())
 	_refresh()
 	if game_state.screen == GameStateScript.Screen.BACKLOG:
 		_scroll_backlog_to_end()
+
+
+## タイトルでゆっくりモードを切り替え、表示を更新する
+func _toggle_slow_mode() -> void:
+	var game_state: Node = _game_state()
+	if game_state != null and game_state.toggle_slow_mode():
+		_refresh()
 
 
 ## option_index 番目 (0 始まり) の選択肢を選び、表示を更新する
@@ -123,8 +158,14 @@ func _refresh() -> void:
 	conversation_screen.visible = screen == GameStateScript.Screen.PLAYING
 	backlog_screen.visible = screen == GameStateScript.Screen.BACKLOG
 	ending_screen.visible = screen == GameStateScript.Screen.ENDING
+	endings_screen.visible = screen == GameStateScript.Screen.ENDINGS
 	if title_screen.visible:
 		continue_button.visible = game_state != null and game_state.can_continue()
+		slow_mode_button.visible = game_state != null and game_state.can_select_slow_mode()
+		if slow_mode_button.visible:
+			slow_mode_button.text = (
+				"ゆっくりモード %s [S]" % ("ON" if game_state.slow_mode else "OFF")
+			)
 	if conversation_screen.visible:
 		_refresh_conversation(game_state)
 	if backlog_screen.visible:
@@ -135,16 +176,19 @@ func _refresh() -> void:
 
 
 ## 会話中の画面を game_state の会話の進行に合わせる。メッセージウィンドウにはバックログの最新の行 (いま流れている
-## メッセージか、直前に選んだ選択肢) を出し、選択肢で止まっている間は選択肢と残り時間を出す
+## メッセージか、直前に選んだ選択肢) を、ゆっくりモードでは出し終えた文字まで出し、選択肢で止まっている間は選択肢と
+## 残り時間 (ゆっくりモードでは制限時間が無いため出さない) を出す
 func _refresh_conversation(game_state: Node) -> void:
 	var backlog: Array = game_state.backlog
 	var shown: Dictionary = backlog.back() if not backlog.is_empty() else {}
 	speaker_label.text = shown.get(ScenarioScript.SPEAKER, "")
 	message_label.text = shown.get(ScenarioScript.TEXT, "")
+	message_label.visible_ratio = game_state.revealed_ratio()
 	portrait.visible = shown.has(ScenarioScript.EXPRESSION)
 	expression_label.text = shown.get(ScenarioScript.EXPRESSION, "")
 	var options: Array = game_state.current_line().get(ScenarioScript.CHOICES, [])
 	choice_panel.visible = not options.is_empty()
+	time_bar.visible = not game_state.slow_mode
 	time_bar.value = 1.0 - game_state.elapsed / ConversationScript.CHOICE_SECONDS
 	for option_index: int in range(choice_buttons.size()):
 		choice_buttons[option_index].visible = option_index < options.size()
@@ -160,6 +204,17 @@ func _backlog_text(entry: Dictionary) -> String:
 	if speaker.is_empty():
 		return entry[ScenarioScript.TEXT]
 	return "%s「%s」" % [speaker, entry[ScenarioScript.TEXT]]
+
+
+## エンディング一覧の画面に、names (エンディングの名前の一覧。未到達は GameState の UNKNOWN_ENDING_NAME) を番号付きで
+## 並べ、見たエンディングの数を出す
+func _fill_endings(names: Array[String]) -> void:
+	var entries: PackedStringArray = PackedStringArray()
+	for index: int in range(names.size()):
+		entries.append("%d. %s" % [index + 1, names[index]])
+	endings_label.text = "\n".join(entries)
+	var reached: int = names.size() - names.count(GameStateScript.UNKNOWN_ENDING_NAME)
+	endings_count_label.text = "見たエンディング %d / %d" % [reached, names.size()]
 
 
 ## バックログの一覧を最新の行 (末尾) まで送る。一覧の高さは本文を入れた後のレイアウトで決まるため、
