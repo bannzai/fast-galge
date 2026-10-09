@@ -83,7 +83,7 @@ func _run_scenes(game_state: Node, save_data: Node) -> void:
 		await _check_main_ending(game_state, main, case, save_data)
 	main.queue_free()
 	await process_frame
-	await create_timer(AUDIO_RELEASE_TIME).timeout
+	await _wait_audio_release_realtime()
 
 
 ## 壊れた保存データ (JSON として読めないファイル) を読み込んでも落ちず、既定値 (途中の保存なし) で始まり、

@@ -33,6 +33,15 @@ func _isolate_save(name: String) -> Node:
 	return save_data
 
 
+## 消したシーンが鳴らしていた音の再生を AudioServer が解放するまで、実時間で AUDIO_RELEASE_TIME 待つ。
+## --fixed-fps で起動した headless の検証はフレームが実時間より速く進み、create_timer (ゲームの時間) では headless の
+## 音声ドライバ (実時間で動くミキシングのスレッド) を待てないため
+func _wait_audio_release_realtime() -> void:
+	var until_msec: int = Time.get_ticks_msec() + int(AUDIO_RELEASE_TIME * 1000.0)
+	while Time.get_ticks_msec() < until_msec:
+		await process_frame
+
+
 ## path のファイルがあれば消す
 func _remove_file(path: String) -> void:
 	if FileAccess.file_exists(path):
