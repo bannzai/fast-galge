@@ -52,8 +52,8 @@ check: import
 	tail -n 1 $(LOG_DIR)/check.log | grep -q '^exit=0$$'
 	$(call check_clean_log,$(LOG_DIR)/check.log $(LOG_DIR)/check.godot.log)
 
-# 画面の遷移表・会話エンジンの計算・シナリオの形式と所要時間・全シーンのロード・全素材の assets/CREDITS.md への
-# 記録の検証 (headless)
+# 画面の遷移表・会話エンジンの計算・シナリオの形式と所要時間・オートセーブと再開・保存データの読み書き・全シーンの
+# ロード・全素材の assets/CREDITS.md への記録の検証 (headless)
 selfcheck: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --script res://scripts/dev/selfcheck.gd > $(LOG_DIR)/selfcheck.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/selfcheck.log; \
@@ -62,8 +62,8 @@ selfcheck: import
 	$(call check_clean_log,$(LOG_DIR)/selfcheck.log $(LOG_DIR)/selfcheck.godot.log)
 
 # キー入力とマウスのクリックでメインシーンを動かす入力統合テスト (headless)。会話の自動送り・選択・時間切れ・
-# バックログの開閉・エンディングへの到達と、表示の追従を確認する。--fixed-fps で会話の時間を実時間から切り離し、
-# 本編 5 周 (5 つのエンディング。ルートに入る周は 1 周 約 5 分) を待たずに流す
+# バックログの開閉・エンディングへの到達・オートセーブと「つづきから」の再開と、表示の追従を確認する。--fixed-fps で
+# 会話の時間を実時間から切り離し、本編 5 周 (5 つのエンディング。ルートに入る周は 1 周 約 5 分) を待たずに流す
 integration: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --fixed-fps 60 --script res://scripts/dev/integration.gd > $(LOG_DIR)/integration.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/integration.log; \

@@ -14,6 +14,7 @@ const ConversationScript := preload("res://scripts/conversation.gd")
 const SCREEN_ACTIONS: Dictionary = {
 	"confirm": GameStateScript.Command.CONFIRM,
 	"backlog": GameStateScript.Command.BACKLOG,
+	"continue": GameStateScript.Command.CONTINUE,
 }
 ## 選択肢を選ぶ入力のアクション (並び順が選択肢の番号)
 const CHOICE_ACTIONS: Array[String] = ["choice_1", "choice_2", "choice_3"]
@@ -21,9 +22,10 @@ const CHOICE_ACTIONS: Array[String] = ["choice_1", "choice_2", "choice_3"]
 ## 起動検証 (make check) が確認する起動の印
 const BOOT_MESSAGE: String = "fast-galge boot"
 
-## タイトルの画面と、会話を始めるボタン
+## タイトルの画面、会話を最初から始めるボタン、保存した章から再開するボタン (途中の保存がある間だけ出す)
 @onready var title_screen: Control = $TitleScreen
 @onready var start_button: Button = $TitleScreen/StartButton
+@onready var continue_button: Button = $TitleScreen/ContinueButton
 ## 会話中の画面
 @onready var conversation_screen: Control = $ConversationScreen
 ## 立ち絵の代わりの色面と、表情の名前を出すラベル (表情を持つメッセージの間だけ出す)
@@ -58,6 +60,7 @@ const BOOT_MESSAGE: String = "fast-galge boot"
 func _ready() -> void:
 	print(BOOT_MESSAGE)
 	start_button.pressed.connect(_apply.bind(GameStateScript.Command.CONFIRM))
+	continue_button.pressed.connect(_apply.bind(GameStateScript.Command.CONTINUE))
 	backlog_button.pressed.connect(_apply.bind(GameStateScript.Command.BACKLOG))
 	close_button.pressed.connect(_apply.bind(GameStateScript.Command.BACKLOG))
 	title_button.pressed.connect(_apply.bind(GameStateScript.Command.CONFIRM))
@@ -120,6 +123,8 @@ func _refresh() -> void:
 	conversation_screen.visible = screen == GameStateScript.Screen.PLAYING
 	backlog_screen.visible = screen == GameStateScript.Screen.BACKLOG
 	ending_screen.visible = screen == GameStateScript.Screen.ENDING
+	if title_screen.visible:
+		continue_button.visible = game_state != null and game_state.can_continue()
 	if conversation_screen.visible:
 		_refresh_conversation(game_state)
 	if backlog_screen.visible:
