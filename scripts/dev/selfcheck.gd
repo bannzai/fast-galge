@@ -1,8 +1,10 @@
-extends "res://scripts/dev/headless_check.gd"
+extends "res://scripts/dev/selfcheck_menu.gd"
 ## 画面の遷移表、会話エンジンの計算 (表示時間・時間切れ・好感度・分岐・章の区切り・所要時間)、シナリオの形式、本編 (5 つの
 ## エンディングへの到達・各ルートの所要時間・共通パートの分岐・章の区切りの数)、GameState の会話の進行 (章の区切りでの
-## オートセーブと「つづきから」の再開を含む)、保存データの読み書きと壊れたデータの扱い、全シーンのロード、全素材が
-## assets/CREDITS.md に記録されていることの検証 (headless)。
+## オートセーブと「つづきから」の再開を含む)、保存データの読み書きと壊れたデータの扱い、音量の保存と読み込みとバスへの
+## 反映、全シーンのロード、全素材が assets/CREDITS.md に記録されクレジット画面の文に出ることと、クレジット画面の
+## 問い合わせ先が紹介ページと一致することの検証 (headless。設定とクレジットの検証は継承元の
+## scripts/dev/selfcheck_menu.gd)。
 ## 実行方法は AGENTS.md を参照。release ビルドで assert が消えるため、明示的な判定と exit code で結果を返す。
 
 ## 起動検証 (main_scene の --quit) ではロードされない遷移先も含めた全シーン
@@ -11,8 +13,6 @@ const SCENES: Array[String] = [
 ]
 ## 画面と遷移表を持つ autoload のスクリプト
 const GAME_STATE_SCRIPT := preload("res://scripts/game_state.gd")
-## 保存データの autoload のスクリプト
-const SAVE_DATA_SCRIPT := preload("res://scripts/save_data.gd")
 ## 保存・読み込みの検証で書き出す保存データ。プレイヤーの保存データ (user://) を書き換えないよう tmp/ に置く
 const SAVE_TEST_PATH: String = "res://tmp/selfcheck-save.json"
 ## 保存データの解釈の検証で、壊れたデータとして扱う文字列
@@ -84,6 +84,60 @@ const TRANSITION_CASES: Array[Array] = [
 		GAME_STATE_SCRIPT.Command.CONTINUE,
 		GAME_STATE_SCRIPT.Screen.ENDING,
 		"エンディングのつづきからでは画面が変わらない",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		GAME_STATE_SCRIPT.Command.SETTINGS,
+		GAME_STATE_SCRIPT.Screen.SETTINGS,
+		"タイトルで設定を開ける",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.SETTINGS,
+		GAME_STATE_SCRIPT.Command.SETTINGS,
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		"設定をもう一度押すとタイトルに戻る",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.SETTINGS,
+		GAME_STATE_SCRIPT.Command.CONFIRM,
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		"設定で決定するとタイトルに戻る",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.SETTINGS,
+		GAME_STATE_SCRIPT.Command.CREDITS,
+		GAME_STATE_SCRIPT.Screen.SETTINGS,
+		"設定からクレジットへは移らない",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		GAME_STATE_SCRIPT.Command.CREDITS,
+		GAME_STATE_SCRIPT.Screen.CREDITS,
+		"タイトルでクレジットを開ける",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.CREDITS,
+		GAME_STATE_SCRIPT.Command.CREDITS,
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		"クレジットをもう一度押すとタイトルに戻る",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.CREDITS,
+		GAME_STATE_SCRIPT.Command.CONFIRM,
+		GAME_STATE_SCRIPT.Screen.TITLE,
+		"クレジットで決定するとタイトルに戻る",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		GAME_STATE_SCRIPT.Command.SETTINGS,
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		"会話中は設定を開けない",
+	],
+	[
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		GAME_STATE_SCRIPT.Command.CREDITS,
+		GAME_STATE_SCRIPT.Screen.PLAYING,
+		"会話中はクレジットを開けない",
 	],
 ]
 ## メッセージの表示時間の検証 (本文の文字数・期待する秒数)。10 文字以下は下限、20 文字以上は上限に張り付く
@@ -237,8 +291,10 @@ func _initialize() -> void:
 	_check_game_state_conversation()
 	_check_save_parse()
 	_check_save_file()
+	_check_volumes()
 	_check_scenes()
 	_check_credits()
+	_check_credits_text()
 	if failed:
 		quit(1)
 		return
@@ -257,6 +313,19 @@ func _check_transitions() -> void:
 	_check(game_state.is_playing(), "apply の後は会話中")
 	_check(not game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM), "apply: 画面が変わらないと false")
 	game_state.free()
+	for command: GAME_STATE_SCRIPT.Command in [
+		GAME_STATE_SCRIPT.Command.SETTINGS, GAME_STATE_SCRIPT.Command.CREDITS
+	]:
+		var opener: Node = GAME_STATE_SCRIPT.new()
+		_check(
+			opener.apply(command) and opener.lines.is_empty() and not opener.is_playing(),
+			"apply: タイトルで設定・クレジットを開いても会話は始まらない (%d)" % command
+		)
+		_check(
+			opener.apply(command) and opener.screen == GAME_STATE_SCRIPT.Screen.TITLE,
+			"apply: 設定・クレジットからタイトルに戻る (%d)" % command
+		)
+		opener.free()
 
 
 ## メッセージの表示時間 (MESSAGE_SECONDS_CASES)、選択肢の行で止まる時間、1 フレームで進める時間の検証
@@ -654,23 +723,31 @@ func _check_save_parse() -> void:
 				broken["chapter"] == ""
 				and broken["affection"].is_empty()
 				and broken["reached_endings"].is_empty()
+				and broken["volumes"] == SAVE_DATA_SCRIPT.default_volumes()
 			),
 			"保存データ: 壊れたデータ %s は既定値にする" % broken_text
 		)
 	var empty: Dictionary = SAVE_DATA_SCRIPT.parse('{"version": 1}')
 	_check(
-		not empty["broken"] and empty["chapter"] == "" and empty["reached_endings"].is_empty(),
-		"保存データ: 版だけのデータは壊れていない既定値"
+		(
+			not empty["broken"]
+			and empty["chapter"] == ""
+			and empty["reached_endings"].is_empty()
+			and empty["volumes"] == SAVE_DATA_SCRIPT.default_volumes()
+		),
+		"保存データ: 版だけのデータ (音量を足す前の保存データ) は壊れていない既定値"
 	)
 	var endings: Array[String] = ["hina_good"]
-	var text: String = SAVE_DATA_SCRIPT.serialize("route_hina_autumn", {"hina": 2}, endings)
+	var volumes: Dictionary = {"BGM": 3, "SE": 0}
+	var text: String = SAVE_DATA_SCRIPT.serialize("route_hina_autumn", {"hina": 2}, endings, volumes)
 	var loaded: Dictionary = SAVE_DATA_SCRIPT.parse(text)
 	_check(not loaded["broken"], "保存データ: 書き出したデータを読める")
 	_check(loaded["chapter"] == "route_hina_autumn", "保存データ: 章の区切りを読み戻せる")
 	_check(loaded["affection"] == {"hina": 2}, "保存データ: 好感度を整数で読み戻せる")
 	_check(loaded["reached_endings"] == endings, "保存データ: 到達したエンディングを読み戻せる")
+	_check(loaded["volumes"] == volumes, "保存データ: 音量を読み戻せる")
 	var rewritten: String = SAVE_DATA_SCRIPT.serialize(
-		loaded["chapter"], loaded["affection"], loaded["reached_endings"]
+		loaded["chapter"], loaded["affection"], loaded["reached_endings"], loaded["volumes"]
 	)
 	_check(rewritten == text, "保存データ: 読み戻した値から同じ文字列を書き出す")
 	var partial: Dictionary = SAVE_DATA_SCRIPT.parse(
@@ -749,7 +826,11 @@ func _check_save_file() -> void:
 	var writing_path: String = path + SAVE_DATA_SCRIPT.WRITING_SUFFIX
 	_remove_file(path)
 	var writing: FileAccess = FileAccess.open(writing_path, FileAccess.WRITE)
-	writing.store_string(SAVE_DATA_SCRIPT.serialize("route_hina_spring", {"hina": 1}, endings))
+	writing.store_string(
+		SAVE_DATA_SCRIPT.serialize(
+			"route_hina_spring", {"hina": 1}, endings, SAVE_DATA_SCRIPT.default_volumes()
+		)
+	)
 	writing.close()
 	loader.load_from(path)
 	_check(
@@ -777,14 +858,6 @@ func _check_save_file() -> void:
 	_remove_save_files(path)
 
 
-## path の保存データと、退避したファイル・書き出し途中のファイルを消す (前の実行が途中で止まっていても、保存データが
-## 無い状態から検証を始めるため)
-func _remove_save_files(path: String) -> void:
-	_remove_file(path)
-	_remove_file(path + SAVE_DATA_SCRIPT.BROKEN_SUFFIX)
-	_remove_file(path + SAVE_DATA_SCRIPT.WRITING_SUFFIX)
-
-
 ## 全シーンがロードできる
 func _check_scenes() -> void:
 	for path: String in SCENES:
@@ -792,7 +865,7 @@ func _check_scenes() -> void:
 		_check(scene != null and scene.can_instantiate(), "シーンのロード: %s" % path)
 
 
-## assets/ の全ファイルが CREDITS.md に記録されている
+## assets/ の全ファイルが CREDITS.md に記録され、クレジット画面の文に出る
 func _check_credits() -> void:
 	var credits_file: FileAccess = FileAccess.open(CREDITS_PATH, FileAccess.READ)
 	_check(credits_file != null, "CREDITS.md が開ける: %s" % CREDITS_PATH)
@@ -800,9 +873,12 @@ func _check_credits() -> void:
 		return
 	var credits: String = credits_file.get_as_text()
 	credits_file.close()
+	var credits_text: String = CREDITS_SCRIPT.load_text()
+	_check(not credits_text.is_empty(), "クレジット画面: 素材の記録から文を作れる")
 	for asset: String in _asset_files(ASSETS_DIR):
 		var relative: String = asset.trim_prefix(ASSETS_DIR + "/")
 		_check(credits.contains("`%s`" % relative), "素材の記録: %s が CREDITS.md にある" % relative)
+		_check(credits_text.contains(relative), "クレジット画面: %s が出る" % relative)
 
 
 ## dir 配下の素材ファイル (記録の対象外を除く) を再帰的に集める

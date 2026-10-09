@@ -1,12 +1,24 @@
 extends "res://scripts/dev/headless_check.gd"
 ## キー入力とマウスのクリック (タップの代わり) でメインシーンを動かし、会話の自動送り・選択・時間切れ・バックログの開閉・
 ## 5 つのエンディングへの到達・章の区切りでのオートセーブとタイトルの「つづきから」での再開と、表示が会話の進行に追従する
-## ことを検証する (headless)。保存先は tmp/ の検証用のファイルに変える。Makefile が --fixed-fps 60 を付けて
+## ことと、タイトルから開く設定 (音量の変更と保存) とクレジット (リンクを開く) を検証する
+## (headless)。保存先は tmp/ の検証用のファイルに変える。Makefile が --fixed-fps 60 を付けて
 ## 起動し、会話の時間を実時間から切り離して 1 フレーム 1/60 秒で進める (本編を実時間で流すと 1 周に約 5 分かかるため)。
 ## 実行方法は AGENTS.md を参照。失敗したら quit(1) で終わる。
 
 ## 画面 (Screen) の定義と本編のシナリオを持つ autoload の GameState のスクリプト
 const GameStateScript := preload("res://scripts/game_state.gd")
+## 音量のバスと段階を持つ autoload の SaveData のスクリプト
+const SaveDataScript := preload("res://scripts/save_data.gd")
+## クレジット画面の文とリンクの URL
+const CreditsScript := preload("res://scripts/credits.gd")
+## クレジット画面のリンクのボタン (メインシーンのノードのパス) と、そのタップで開く URL
+const CREDIT_LINKS: Dictionary = {
+	"CreditsScreen/TermsButton": CreditsScript.TERMS_URL,
+	"CreditsScreen/PrivacyButton": CreditsScript.PRIVACY_URL,
+	"CreditsScreen/SupportButton": CreditsScript.SUPPORT_URL,
+	"CreditsScreen/MailButton": CreditsScript.MAIL_URL,
+}
 ## 会話が進むのを待つ上限のフレーム数 (60 fps で 10 分)。本編 1 周 (ルートに入る周) の所要時間の上限 7 分より長くして、
 ## 会話が終わらない不具合の時だけ待ちを打ち切る
 const WAIT_FRAME_LIMIT: int = 36000
@@ -39,8 +51,8 @@ func _run() -> void:
 	quit(0)
 
 
-## 壊れた保存データで起動しても落ちず既定値に戻ることを確かめてから、メインシーンを置いてサンプルシナリオと本編を
-## 入力で進め、最後にシーンを消す
+## 壊れた保存データで起動しても落ちず既定値に戻ることを確かめてから、メインシーンを置いてサンプルシナリオ・設定と
+## クレジット・本編を入力で進め、最後にシーンを消す
 func _run_scenes(game_state: Node, save_data: Node) -> void:
 	_check_broken_save(save_data)
 	var main: Control = _add_main()
@@ -50,6 +62,8 @@ func _run_scenes(game_state: Node, save_data: Node) -> void:
 	await _check_sample_timeout(game_state, main)
 	await _check_sample_with_taps(game_state, main)
 	await _check_sample_resume(game_state, main, save_data)
+	await _check_settings(game_state, main, save_data)
+	await _check_credits(game_state, main)
 	game_state.scenario_paths = GameStateScript.MAIN_SCENARIO_PATHS
 	for case: Array in MAIN_ENDING_CASES:
 		await _check_main_ending(game_state, case, save_data)
@@ -259,6 +273,92 @@ func _check_sample_resume(game_state: Node, main: Control, save_data: Node) -> v
 	await _wait_until(func() -> bool: return not game_state.is_playing())
 	await _hold_keys([KEY_ENTER], 1)
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "つづきから: 再開した会話の終わりからタイトルに戻る")
+
+
+## タイトルから設定を S のキーとボタンのタップで開閉し、音量の － / ＋ のタップで BGM と効果音の音量を変えると、
+## 段階のバー・保存データ・バスの音量が揃って変わり、保存データをファイルから読み込み直しても (再起動の代わり) 保たれる
+## こと。タイトルで呼ぶ
+func _check_settings(game_state: Node, main: Control, save_data: Node) -> void:
+	var rows: Control = main.get_node("SettingsScreen/Volumes")
+	await _hold_keys([KEY_S], 1)
+	_check(game_state.screen == GameStateScript.Screen.SETTINGS, "設定: S で設定を開く")
+	_check(main.get_node("SettingsScreen").visible, "設定: 設定の画面が出ている")
+	_check(not game_state.is_playing(), "設定: 設定を開いても会話は始まらない")
+	for bus: String in SaveDataScript.VOLUME_BUSES:
+		_check(
+			rows.get_node(bus).get_node("Level").value == save_data.volumes[bus],
+			"設定: %s の段階のバーが保存データの音量を出す" % bus
+		)
+	var bgm_before: int = save_data.volumes["BGM"]
+	for _i: int in range(SaveDataScript.MAX_VOLUME - bgm_before + 1):
+		await _click(rows.get_node("BGM/Up"))
+	_check(save_data.volumes["BGM"] == SaveDataScript.MAX_VOLUME, "設定: BGM の ＋ のタップで最大まで上がって止まる")
+	var se_before: int = save_data.volumes["SE"]
+	await _click(rows.get_node("SE/Down"))
+	await _click(rows.get_node("SE/Down"))
+	_check(save_data.volumes["SE"] == se_before - 2, "設定: 効果音の － のタップで 1 段ずつ下がる")
+	for bus: String in SaveDataScript.VOLUME_BUSES:
+		_check_volume_shown(main, save_data, bus)
+	await _hold_keys([KEY_S], 1)
+	_check(game_state.screen == GameStateScript.Screen.TITLE, "設定: S で閉じてタイトルに戻る")
+	await _click(main.get_node("TitleScreen/SettingsButton"))
+	_check(game_state.screen == GameStateScript.Screen.SETTINGS, "設定: 設定のボタンのタップで開く")
+	await _click(main.get_node("SettingsScreen/CloseButton"))
+	_check(game_state.screen == GameStateScript.Screen.TITLE, "設定: とじるボタンのタップでタイトルに戻る")
+	var changed: Dictionary = save_data.volumes.duplicate()
+	save_data.load_from(save_data.path)
+	_check(save_data.volumes == changed, "設定: 保存データを読み込み直しても変えた音量が保たれる")
+	await _click(main.get_node("TitleScreen/SettingsButton"))
+	for bus: String in SaveDataScript.VOLUME_BUSES:
+		_check_volume_shown(main, save_data, bus)
+	await _hold_keys([KEY_ENTER], 1)
+	_check(game_state.screen == GameStateScript.Screen.TITLE, "設定: Enter で閉じてタイトルに戻る")
+
+
+## bus のバスの音量が、設定の画面の段階のバーとバスの音量 (dB) に出ている
+func _check_volume_shown(main: Control, save_data: Node, bus: String) -> void:
+	var level: int = save_data.volumes[bus]
+	var bar: ProgressBar = main.get_node("SettingsScreen/Volumes/%s/Level" % bus)
+	var index: int = AudioServer.get_bus_index(bus)
+	_check(bar.value == level, "設定: %s の段階のバーが音量 %d を出す" % [bus, level])
+	_check(
+		(
+			index >= 0
+			and is_equal_approx(AudioServer.get_bus_volume_db(index), SaveDataScript.volume_db(level))
+		),
+		"設定: %s のバスの音量が段階 %d の大きさ" % [bus, level]
+	)
+
+
+## タイトルからクレジットを K のキーとボタンのタップで開閉し、素材の出典の一覧が出ていて、リンクのボタン
+## (CREDIT_LINKS) のタップでそれぞれの URL を開こうとすること。URL はブラウザで開かず、メインシーンの open_url を
+## 差し替えて記録する。タイトルで呼ぶ
+func _check_credits(game_state: Node, main: Control) -> void:
+	var opened: Array = []
+	var record: Callable = func(url: String) -> Error:
+		opened.append(url)
+		return OK
+	main.set("open_url", record)
+	await _hold_keys([KEY_K], 1)
+	_check(game_state.screen == GameStateScript.Screen.CREDITS, "クレジット: K でクレジットを開く")
+	_check(main.get_node("CreditsScreen").visible, "クレジット: クレジットの画面が出ている")
+	_check(
+		main.get_node("CreditsScreen/Scroll/Entries").text == CreditsScript.load_text(),
+		"クレジット: 素材の記録から作った一覧が出ている"
+	)
+	for button: String in CREDIT_LINKS:
+		await _click(main.get_node(button))
+	_check(
+		opened == CREDIT_LINKS.values(),
+		"クレジット: リンクのタップで利用規約・プライバシーポリシー・サポートページ・メールを開く (%s)" % [opened]
+	)
+	_check(game_state.screen == GameStateScript.Screen.CREDITS, "クレジット: リンクをタップしても画面はクレジットのまま")
+	await _hold_keys([KEY_K], 1)
+	_check(game_state.screen == GameStateScript.Screen.TITLE, "クレジット: K で閉じてタイトルに戻る")
+	await _click(main.get_node("TitleScreen/CreditsButton"))
+	_check(game_state.screen == GameStateScript.Screen.CREDITS, "クレジット: クレジットのボタンのタップで開く")
+	await _click(main.get_node("CreditsScreen/CloseButton"))
+	_check(game_state.screen == GameStateScript.Screen.TITLE, "クレジット: とじるボタンのタップでタイトルに戻る")
 
 
 ## 本編を最初から最後まで、case (MAIN_ENDING_CASES の 1 つ) の進め方で選択肢をキーで選んで (共通 bad の進め方では
