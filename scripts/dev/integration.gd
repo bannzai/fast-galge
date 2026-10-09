@@ -13,6 +13,9 @@ const ResultScript := preload("res://scripts/result.gd")
 ## 本編の所要時間の実測が見積もりより短くなる分の上限 (秒)。見積もりは選択肢ごとに制限時間いっぱい止まる前提のため、
 ## キーで即座に選ぶ実測は選択肢 1 つにつき制限時間の分だけ短くなる。長くなる側の許容は 1 フレーム分に余裕を持たせた 1 秒
 const MAIN_SECONDS_TOLERANCE: float = 1.0
+## 所要時間の下限に持たせる余裕 (秒)。何も選ばない進め方では下限が見積もりそのものになり、1/60 秒ずつ積んだ浮動小数の
+## 丸め誤差で数 e-15 秒だけ下回り得るため
+const SECONDS_EPSILON: float = 0.001
 ## 会話が進むのを待つ上限のフレーム数 (60 fps で 10 分)。本編 1 周 (ルートに入る周) の所要時間の上限 7 分より長くして、
 ## 会話が終わらない不具合の時だけ待ちを打ち切る
 const WAIT_FRAME_LIMIT: int = 36000
@@ -350,7 +353,8 @@ func _check_main_ending(game_state: Node, main: Control, case: Array) -> void:
 	var play_seconds: float = game_state.play_seconds
 	_check(
 		(
-			play_seconds >= estimated["seconds"] - chosen * ConversationScript.CHOICE_SECONDS
+			play_seconds
+			>= estimated["seconds"] - chosen * ConversationScript.CHOICE_SECONDS - SECONDS_EPSILON
 			and play_seconds <= estimated["seconds"] + MAIN_SECONDS_TOLERANCE
 		),
 		(
