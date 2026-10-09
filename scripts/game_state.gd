@@ -74,11 +74,11 @@ static func next_screen(current: Screen, command: Command) -> Screen:
 	return accepted.get(command, current)
 
 
-## lines のエンディングの名前を並び順に並べ、reached (到達したエンディングの ID) に無いものを UNKNOWN_ENDING_NAME に
-## した一覧 (エンディング一覧の表示)
-static func ending_names(lines: Array, reached: Array[String]) -> Array[String]:
+## scenario_lines (シナリオの行) のエンディングの名前を並び順に並べ、reached (到達したエンディングの ID) に無いものを
+## UNKNOWN_ENDING_NAME にした一覧 (エンディング一覧の表示)
+static func ending_names(scenario_lines: Array, reached: Array[String]) -> Array[String]:
 	var names: Array[String] = []
-	for line: Dictionary in lines:
+	for line: Dictionary in scenario_lines:
 		if line.has(ScenarioScript.ENDING):
 			names.append(
 				line[ScenarioScript.NAME]
