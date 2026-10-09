@@ -1,17 +1,20 @@
-extends "res://scripts/dev/headless_check.gd"
+extends "res://scripts/dev/selfcheck_speed_and_endings.gd"
 ## 画面の遷移表、会話エンジンの計算 (表示時間・時間切れ・好感度・分岐・章の区切り・所要時間・ゆっくりモードの速さの倍率)、
 ## シナリオの形式、本編 (5 つのエンディングへの到達・各ルートの所要時間・共通パートの分岐・章の区切りの数)、GameState の
-## 会話の進行 (章の区切りでのオートセーブと「つづきから」の再開、ゆっくりモードの解放の条件と手で送る進行を含む)、
-## エンディング一覧の名前、保存データの読み書きと壊れたデータの扱い、全シーンのロード、全素材が assets/CREDITS.md に
-## 記録されていることの検証 (headless)。
+## 会話の進行 (章の区切りでのオートセーブと「つづきから」の再開、ゆっくりモードの解放の条件と手で送る進行を含む) と結果の
+## 記録、結果の文面と X の投稿画面の URL の形、エンディング一覧の名前、保存データの読み書きと壊れたデータの扱い、
+## 全シーンのロード、全素材が assets/CREDITS.md に記録されていることの検証 (headless)。
 ## 実行方法は AGENTS.md を参照。release ビルドで assert が消えるため、明示的な判定と exit code で結果を返す。
 
 ## 起動検証 (main_scene の --quit) ではロードされない遷移先も含めた全シーン
 const SCENES: Array[String] = [
 	"res://scenes/main.tscn",
+	"res://scenes/result_card.tscn",
 ]
 ## 画面と遷移表を持つ autoload のスクリプト
 const GAME_STATE_SCRIPT := preload("res://scripts/game_state.gd")
+## 結果の文面と URL の組み立て
+const ResultScript := preload("res://scripts/result.gd")
 ## 保存データの autoload のスクリプト
 const SAVE_DATA_SCRIPT := preload("res://scripts/save_data.gd")
 ## 保存・読み込みの検証で書き出す保存データ。プレイヤーの保存データ (user://) を書き換えないよう tmp/ に置く
@@ -124,13 +127,6 @@ const MESSAGE_SECONDS_CASES: Array[Array] = [
 	[15, 0.6],
 	[20, 0.8],
 	[40, 0.8],
-]
-## ゆっくりモードの文字送りの検証 (経過時間をゆっくりモードの表示時間で割った割合・期待する出し終えた割合)
-const REVEALED_RATIO_CASES: Array[Array] = [
-	[0.0, 0.0],
-	[0.5, 0.5],
-	[1.0, 1.0],
-	[3.0, 1.0],
 ]
 ## 分岐・好感度・時間切れ・所要時間の計算の検証に使う、選択肢 1 つのシナリオ。
 ## 1 つ目の選択肢 (up) は条件つきの移動を満たして good、2 つ目 (down) と時間切れ (late) は満たさず bad に着く
@@ -262,21 +258,49 @@ const ROUTE_STUB_LINES: Array = [
 	{"label": COMMON_BAD},
 	{"ending": COMMON_BAD, "name": COMMON_BAD, "summary": COMMON_BAD},
 ]
+## 所要時間の表記の検証 (秒・期待する表記)。秒は切り捨て
+const FORMAT_SECONDS_CASES: Array[Array] = [
+	[0.0, "0分00秒"],
+	[59.9, "0分59秒"],
+	[302.9, "5分02秒"],
+	[3600.0, "60分00秒"],
+]
+## X の文字数の数え方の検証 (文・期待する文字数)。全角は 2、ASCII は 1、URL は長さによらず 23、改行と空白は 1
+const WEIGHTED_LENGTH_CASES: Array[Array] = [
+	["abc", 3],
+	["あ", 2],
+	["https://bannzai.github.io/fast-galge/", 23],
+	["あ https://x.com/intent/post\nabc", 2 + 1 + 23 + 1 + 3],
+]
+## 結果の文面の検証に使う結果 (所要時間 302.9 秒・選択肢 5・時間切れ 0)
+const SAMPLE_RESULT: Dictionary = {
+	ResultScript.ENDING_NAME: "ふたりの速度",
+	ResultScript.SECONDS: 302.9,
+	ResultScript.CHOICES: 5,
+	ResultScript.TIMEOUTS: 0,
+}
+## 結果の画像 (scenes/result_card.tscn) のエンディング名の 1 行に収まる文字数の上限 (幅 1080 px・72 px の全角 15 文字)
+const MAX_ENDING_NAME_LENGTH: int = 14
+## 文面の文字数の上限の検証で、どのエンディングでも超えないことを確かめる時に入れる最大の値
+## (本編の所要時間の上限と選択肢の数の上限)
+const LONGEST_RESULT_VALUES: Dictionary = {
+	ResultScript.SECONDS: MAIN_MAX_SECONDS,
+	ResultScript.CHOICES: MAIN_MAX_CHOICES,
+	ResultScript.TIMEOUTS: MAIN_MAX_CHOICES,
+}
 
 
 ## 全検証を実行し、1 件でも失敗していれば exit code 1、すべて通れば `selfcheck OK` を出して exit code 0 で終わる
 func _initialize() -> void:
 	_check_transitions()
 	_check_message_seconds()
-	_check_speed_rate()
 	_check_branch()
 	_check_chapter()
 	_check_scenario_format()
 	_check_main_scenario()
 	_check_game_state_conversation()
-	_check_slow_mode_unlock()
-	_check_slow_mode_conversation()
-	_check_ending_names()
+	_check_speed_and_endings()
+	_check_result_text()
 	_check_save_parse()
 	_check_save_file()
 	_check_scenes()
@@ -331,25 +355,6 @@ func _check_message_seconds() -> void:
 		),
 		"1 フレームの時間: 描画が止まっていた後の長い経過時間は上限までしか進めない"
 	)
-
-
-## 会話の速さの倍率の計算。ゆっくりモードは通常と同じ計算に倍率を渡し、表示時間と制限時間を倍率で割る
-func _check_speed_rate() -> void:
-	var slow: float = ConversationScript.SLOW_SPEED_RATE
-	_check(ConversationScript.speed_rate(false) == 1.0, "倍率: 通常の速さは 1")
-	_check(ConversationScript.speed_rate(true) == slow, "倍率: ゆっくりモードの倍率")
-	_check(slow > 0.0 and slow < 1.0, "倍率: ゆっくりモードは通常より遅い")
-	for case: Array in MESSAGE_SECONDS_CASES:
-		var seconds: float = ConversationScript.message_seconds("あ".repeat(case[0]), slow)
-		_check(is_equal_approx(seconds, case[1] / slow), "倍率: %d 文字は %.1f 秒を倍率で割る" % case)
-	var choice_seconds: float = ConversationScript.stop_seconds(BRANCH_LINES[1], slow)
-	var limit: float = ConversationScript.CHOICE_SECONDS / slow
-	_check(is_equal_approx(choice_seconds, limit), "倍率: 選択肢の制限時間も倍率で割る")
-	var text: String = "あ".repeat(15)
-	for case: Array in REVEALED_RATIO_CASES:
-		var elapsed: float = case[0] * ConversationScript.message_seconds(text, slow)
-		var ratio: float = ConversationScript.revealed_ratio(text, elapsed, slow)
-		_check(is_equal_approx(ratio, case[1]), "文字送り: 表示時間の %.1f 倍で %.1f まで出す" % case)
 
 
 ## 分岐・時間切れ・好感度・所要時間の計算の検証 (BRANCH_LINES)
@@ -536,6 +541,17 @@ func _check_main_progress(case: Array, lines: Array, expected: Dictionary, choic
 		game_state.current_line() == expected["ending"],
 		"本編: %s を GameState で進めたエンディングが見積もりと一致する" % case[0]
 	)
+	_check(
+		is_equal_approx(game_state.play_seconds, stepped),
+		(
+			"本編: %s を GameState で進めた結果の所要時間が、会話中に進めた時間と一致する (%.2f 秒)"
+			% [case[0], game_state.play_seconds]
+		)
+	)
+	_check(
+		game_state.choice_count == choices,
+		"本編: %s を GameState で進めた結果の選んだ選択肢の数が %d" % [case[0], choices]
+	)
 	game_state.free()
 
 
@@ -626,6 +642,10 @@ func _check_game_state_conversation() -> void:
 	_check(game_state.choose(0), "進行: 選択肢を選べる")
 	_check(game_state.affection == {"hina": 1}, "進行: 選んだ選択肢の好感度が足される")
 	_check(
+		game_state.choice_count == 1 and game_state.timeout_count == 0,
+		"結果: 制限時間内に選ぶと選んだ選択肢の数が増え、時間切れの回数は増えない"
+	)
+	_check(
 		game_state.backlog[4]["text"] == game_state.lines[4]["choices"][0]["text"],
 		"進行: 選んだ選択肢がバックログに積まれる"
 	)
@@ -649,11 +669,29 @@ func _check_game_state_conversation() -> void:
 		),
 		"進行: 好感度を満たすと good のエンディングに着く"
 	)
+	var result: Dictionary = game_state.result()
+	_check(
+		(
+			result[ResultScript.ENDING_NAME] == game_state.current_line()["name"]
+			and result[ResultScript.CHOICES] == 1
+			and result[ResultScript.TIMEOUTS] == 0
+			and result[ResultScript.SECONDS] > 0.0
+		),
+		"結果: エンディングに着くとエンディング名・所要時間・選んだ選択肢の数・時間切れの回数が揃う (%s)" % result
+	)
 	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
 	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
 	_check(
 		game_state.affection.is_empty() and game_state.backlog.size() == 1,
 		"進行: やり直すと好感度とバックログが初期値に戻る"
+	)
+	_check(
+		(
+			game_state.choice_count == 0
+			and game_state.timeout_count == 0
+			and is_zero_approx(game_state.play_seconds)
+		),
+		"結果: やり直すと所要時間・選んだ選択肢の数・時間切れの回数が初期値に戻る"
 	)
 	game_state.advance(60.0)
 	_check(
@@ -666,6 +704,10 @@ func _check_game_state_conversation() -> void:
 	_check(
 		game_state.affection == {"hina": ConversationScript.TIMEOUT_AFFECTION},
 		"進行: 時間切れで好感度が下がる"
+	)
+	_check(
+		game_state.choice_count == 0 and game_state.timeout_count == 1,
+		"結果: 時間切れは時間切れの回数に数え、選んだ選択肢の数には数えない"
 	)
 	_check(
 		game_state.backlog.any(
@@ -710,82 +752,6 @@ func _check_game_state_conversation() -> void:
 	saver.free()
 	loader.free()
 	_remove_save_files(path)
-
-
-## ゆっくりモードの解放の条件。クリア済み (到達したエンディングがある) の時だけ、タイトルで切り替えられる
-func _check_slow_mode_unlock() -> void:
-	var game_state: Node = GAME_STATE_SCRIPT.new()
-	var label: String = "ゆっくりモード: "
-	_check(not game_state.can_select_slow_mode(), label + "保存データが無ければ選べない")
-	var saver: Node = SAVE_DATA_SCRIPT.new()
-	game_state.save_data = saver
-	_check(not game_state.toggle_slow_mode(), label + "エンディングを見ていなければ選べない")
-	_check(not game_state.slow_mode, label + "選べない間は通常の速さのまま")
-	saver.reached_endings.append("sample_bad")
-	_check(game_state.can_select_slow_mode(), label + "エンディングを 1 つ見ると選べる")
-	_check(game_state.toggle_slow_mode() and game_state.slow_mode, label + "タイトルで切り替えられる")
-	_check(game_state.toggle_slow_mode() and not game_state.slow_mode, label + "もう一度で通常に戻る")
-	game_state.scenario_paths = SAMPLE_SCENARIO_PATHS
-	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
-	_check(not game_state.toggle_slow_mode(), label + "会話中は切り替えられない")
-	game_state.free()
-	saver.free()
-
-
-## ゆっくりモードの会話の進行 (サンプルシナリオ)。時間が経っても自動では送らず、文字を出し切るだけ。決定 (send) で
-## 出し切る前は全文を出し、出し切った後は次の行へ送る。選択肢は時間切れにならない。通常の速さでは send しても送れない
-func _check_slow_mode_conversation() -> void:
-	var label: String = "ゆっくりモード: "
-	var game_state: Node = GAME_STATE_SCRIPT.new()
-	game_state.scenario_paths = SAMPLE_SCENARIO_PATHS
-	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
-	_check(not game_state.send(), "通常の速さ: 決定してもメッセージは送れない")
-	_check(game_state.revealed_ratio() == 1.0, "通常の速さ: メッセージは最初から全文を出す")
-	game_state.free()
-	game_state = GAME_STATE_SCRIPT.new()
-	game_state.scenario_paths = SAMPLE_SCENARIO_PATHS
-	game_state.slow_mode = true
-	game_state.apply(GAME_STATE_SCRIPT.Command.CONFIRM)
-	_check(game_state.revealed_ratio() == 0.0, label + "メッセージの文字は始めは出ていない")
-	game_state.advance(60.0)
-	_check(game_state.position == 0, label + "時間が経ってもメッセージは自動で送られない")
-	_check(game_state.revealed_ratio() == 1.0, label + "表示時間が経つと文字を出し切る")
-	_check(game_state.send() and game_state.position == 1, label + "出し切った後の決定で次へ送る")
-	_check(game_state.revealed_ratio() == 0.0, label + "送った次のメッセージは出し始めから")
-	_check(game_state.send() and game_state.position == 1, label + "出し切る前の決定では送らない")
-	_check(game_state.revealed_ratio() == 1.0, label + "出し切る前の決定で全文を出す")
-	while not _is_choosing(game_state):
-		game_state.send()
-	game_state.advance(60.0)
-	_check(game_state.affection.is_empty(), label + "選択肢は時間が経っても時間切れにならない")
-	_check(not game_state.send(), label + "選択肢で止まっている間は決定で送れない")
-	_check(game_state.choose(0), label + "選択肢を選べる")
-	while game_state.is_playing():
-		game_state.send()
-	_check(game_state.current_line().get("ending") == "sample_good", label + "送り続けると着く")
-	game_state.free()
-
-
-## エンディング一覧の名前。シナリオのエンディングを並び順に並べ、到達していないものは名前を隠す
-func _check_ending_names() -> void:
-	var sample: Array = ScenarioScript.load_lines(SAMPLE_SCENARIO_PATHS)
-	var main_lines: Array = ScenarioScript.load_lines(GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS)
-	var unknown: String = GAME_STATE_SCRIPT.UNKNOWN_ENDING_NAME
-	var none: Array[String] = []
-	var good: Array[String] = ["sample_good"]
-	var all_main: Array[String] = []
-	for case: Array in MAIN_ENDING_CASES:
-		all_main.append(case[0])
-	var names: Array[String] = GAME_STATE_SCRIPT.ending_names(main_lines, all_main)
-	var label: String = "エンディング一覧: "
-	_check(GAME_STATE_SCRIPT.ending_names(sample, none) == [unknown, unknown], label + "未到達は隠す")
-	var with_good: Array[String] = GAME_STATE_SCRIPT.ending_names(sample, good)
-	_check(with_good == [unknown, "ふたりの帰り道"], label + "到達したものだけ名前を出す")
-	_check(names.size() == all_main.size() and not names.has(unknown), label + "本編は全部出る %s" % [names])
-	var game_state: Node = GAME_STATE_SCRIPT.new()
-	var hidden: Array[String] = GAME_STATE_SCRIPT.ending_names(main_lines, none)
-	_check(game_state.ending_list() == hidden, label + "保存データが無ければ本編を全部隠す")
-	game_state.free()
 
 
 ## 保存データの文字列の解釈。壊れたデータ (JSON でない・形が違う・版が違う) と、一部の値だけがおかしいデータ
@@ -927,6 +893,63 @@ func _remove_save_files(path: String) -> void:
 	_remove_file(path)
 	_remove_file(path + SAVE_DATA_SCRIPT.BROKEN_SUFFIX)
 	_remove_file(path + SAVE_DATA_SCRIPT.WRITING_SUFFIX)
+
+
+## 結果の文面と X の投稿画面の URL の検証。所要時間の表記、X の文字数の数え方、文面にエンディング名・結果・ハッシュタグ・
+## URL が入ること、サンプルと本編のどのエンディングでも文字数の上限に収まること、URL の形 (投稿画面の URL で始まり、
+## 符号化した文面を戻すと元の文面になり、符号化されていない空白・改行・# を含まない)
+func _check_result_text() -> void:
+	for case: Array in FORMAT_SECONDS_CASES:
+		_check(ResultScript.format_seconds(case[0]) == case[1], "所要時間の表記: %.1f 秒は %s" % case)
+	for case: Array in WEIGHTED_LENGTH_CASES:
+		_check(
+			ResultScript.weighted_length(case[0]) == case[1],
+			"X の文字数: %s は %d" % [case[0].replace("\n", "\\n"), case[1]]
+		)
+	var text: String = ResultScript.share_text(SAMPLE_RESULT)
+	for expected: String in [
+		ResultScript.GAME_NAME,
+		SAMPLE_RESULT[ResultScript.ENDING_NAME],
+		"5分02秒",
+		"選んだ選択肢 5",
+		"時間切れ 0",
+		ResultScript.HASHTAG,
+		ResultScript.URL,
+	]:
+		_check(text.contains(expected), "文面: %s が入る" % expected)
+	for ending: Dictionary in _ending_lines():
+		_check(
+			ending[ScenarioScript.NAME].length() <= MAX_ENDING_NAME_LENGTH,
+			(
+				"エンディング名の長さ: %s が結果の画像の 1 行に収まる %d 文字以内 (%d 文字)"
+				% [ending[ScenarioScript.ENDING], MAX_ENDING_NAME_LENGTH, ending[ScenarioScript.NAME].length()]
+			)
+		)
+		var longest: Dictionary = LONGEST_RESULT_VALUES.duplicate()
+		longest[ResultScript.ENDING_NAME] = ending[ScenarioScript.NAME]
+		var length: int = ResultScript.weighted_length(ResultScript.share_text(longest))
+		_check(
+			length <= ResultScript.MAX_WEIGHTED_LENGTH,
+			(
+				"文面の文字数: %s が上限 %d に収まる (%d)"
+				% [ending[ScenarioScript.ENDING], ResultScript.MAX_WEIGHTED_LENGTH, length]
+			)
+		)
+	var url: String = ResultScript.share_url(text)
+	_check(url.begins_with(ResultScript.INTENT_URL_PREFIX), "URL: X の投稿画面の URL で始まる")
+	var encoded: String = url.trim_prefix(ResultScript.INTENT_URL_PREFIX)
+	_check(encoded.uri_decode() == text, "URL: 符号化した文面を戻すと元の文面になる")
+	_check(
+		not encoded.contains(" ") and not encoded.contains("\n") and not encoded.contains("#"),
+		"URL: 符号化されていない空白・改行・# を含まない"
+	)
+
+
+## サンプルと本編のシナリオのエンディングの行
+func _ending_lines() -> Array:
+	var lines: Array = ScenarioScript.load_lines(SAMPLE_SCENARIO_PATHS)
+	lines.append_array(ScenarioScript.load_lines(GAME_STATE_SCRIPT.MAIN_SCENARIO_PATHS))
+	return lines.filter(func(line: Dictionary) -> bool: return line.has(ScenarioScript.ENDING))
 
 
 ## 全シーンがロードできる
