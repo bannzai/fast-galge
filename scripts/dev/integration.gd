@@ -2,7 +2,9 @@ extends "res://scripts/dev/headless_check.gd"
 ## キー入力とマウスのクリック (タップの代わり) でメインシーンを動かし、会話の自動送り・選択・時間切れ・バックログの開閉・
 ## 5 つのエンディングへの到達・章の区切りでのオートセーブとタイトルの「つづきから」での再開・結果の記録 (結果の画像の本文と
 ## X の投稿画面の URL) と、表示が会話の進行に追従することと、タイトルから開く設定 (音量の変更と保存) とクレジット
-## (リンクを開く) を検証する (headless)。保存先は tmp/ の検証用のファイルに変える。
+## (リンクを開く) と、BGM が会話中とエンディングだけ場面に合わせて鳴ること (タイトル・設定・クレジットでは鳴らない) と
+## 文字送り・選択肢の表示・時間切れ・好感度の変化で効果音が鳴ることを検証する (headless)。保存先は tmp/ の検証用の
+## ファイルに変える。
 ## 共有のボタンとクレジットのリンクは、URL を開く関数を記録するものに差し替えてから押す
 ## (OS.shell_open が runner でブラウザを開こうとして ERROR を出すため)。Makefile が --fixed-fps 60 を付けて
 ## 起動し、会話の時間を実時間から切り離して 1 フレーム 1/60 秒で進める (本編を実時間で流すと 1 周に約 5 分かかるため)。
@@ -23,6 +25,8 @@ const CREDIT_LINKS: Dictionary = {
 }
 ## 結果のキーと、文面・URL の組み立て
 const ResultScript := preload("res://scripts/result.gd")
+## 場面ごとの BGM と効果音の素材
+const SoundScript := preload("res://scripts/sound.gd")
 ## 本編の所要時間の実測が見積もりより短くなる分の上限 (秒)。見積もりは選択肢ごとに制限時間いっぱい止まる前提のため、
 ## キーで即座に選ぶ実測は選択肢 1 つにつき制限時間の分だけ短くなる。長くなる側の許容は 1 フレーム分に余裕を持たせた 1 秒
 const MAIN_SECONDS_TOLERANCE: float = 1.0
@@ -113,12 +117,15 @@ func _check_sample_with_keys(game_state: Node, main: Control, save_data: Node) -
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "起動直後はタイトル")
 	_check(main.get_node("TitleScreen").visible, "タイトルの画面が出ている")
 	_check(not continue_button.visible, "保存が無い間はつづきからのボタンが出ない")
+	_check_bgm(main, null, "BGM: タイトルでは鳴らない")
 	await _hold_keys([KEY_C], 1)
 	_check(game_state.screen == GameStateScript.Screen.TITLE, "保存が無い間は C を押してもタイトルのまま")
 	await _hold_keys([KEY_ENTER], 1)
 	_check(game_state.screen == GameStateScript.Screen.PLAYING, "Enter で会話中になる")
 	_check(main.get_node("ConversationScreen").visible, "会話中の画面が出ている")
 	_check(message_label.text == game_state.lines[0]["text"], "最初のメッセージが表示される")
+	_check_bgm(main, SoundScript.BGM_COMMON, "BGM: 会話を始めると共通パートの BGM が鳴る")
+	_check_effect(main, "message_entered", "効果音: 最初のメッセージで文字送りの効果音が鳴る")
 	main.call("_process", LONG_FRAME_TIME)
 	_check(
 		(
@@ -140,6 +147,7 @@ func _check_sample_with_keys(game_state: Node, main: Control, save_data: Node) -
 	await _check_backlog_with_keys(game_state, main)
 	await _wait_until(_is_choosing.bind(game_state))
 	_check(main.get_node("ConversationScreen/Choices").visible, "選択肢が表示される")
+	_check_effect(main, "choice_entered", "効果音: 選択肢が表示されると選択肢の効果音が鳴る")
 	_check(
 		(
 			main.get_node("ConversationScreen/Choices/Choice1").text
@@ -154,6 +162,7 @@ func _check_sample_with_keys(game_state: Node, main: Control, save_data: Node) -
 	await _hold_keys([CHOICE_KEYS[0]], 1)
 	_check(not _is_choosing(game_state), "1 のキーで選択肢を選べる")
 	_check(game_state.affection == {"hina": 1}, "選んだ選択肢の好感度が足される")
+	_check_effect(main, "affection_changed", "効果音: 好感度が変わる選択肢を選ぶと好感度の効果音が鳴る")
 	_check(not save_data.has_progress(), "章の区切りを通るまではオートセーブされない")
 	await _wait_until(func() -> bool: return save_data.has_progress())
 	_check(
@@ -169,8 +178,10 @@ func _check_sample_with_keys(game_state: Node, main: Control, save_data: Node) -
 		"エンディング名が表示される"
 	)
 	_check(save_data.reached_endings == ["sample_good"], "到達したエンディングが記録される")
+	_check_bgm(main, SoundScript.BGM_ENDING, "BGM: エンディングではエンディングの BGM に切り替わる")
 	_check_result(game_state, main, 1, 0)
 	await _check_share(game_state, main)
+	_check_bgm(main, null, "BGM: エンディングからタイトルに戻ると止まる")
 	_check(
 		not main.get_node("EndingScreen/ResultImage").is_visible_in_tree(),
 		"結果: タイトルでは結果の画像が出ない"
@@ -282,6 +293,7 @@ func _check_backlog_with_keys(game_state: Node, main: Control) -> void:
 	await _hold_keys([KEY_B], 1)
 	_check(game_state.screen == GameStateScript.Screen.BACKLOG, "B でバックログを開く")
 	_check(main.get_node("BacklogScreen").visible, "バックログの画面が出ている")
+	_check_bgm(main, SoundScript.BGM_COMMON, "BGM: バックログを開いても会話中の BGM が続く")
 	var position: int = game_state.position
 	var elapsed: float = game_state.elapsed
 	await create_timer(PAUSE_CHECK_TIME).timeout
@@ -313,6 +325,7 @@ func _check_sample_timeout(game_state: Node, main: Control) -> void:
 	_check(_is_choosing(game_state), "制限時間の途中では選択肢が出たまま")
 	_check(time_bar.value < value_at_start, "残り時間のバーが減る")
 	await _wait_until(func() -> bool: return not _is_choosing(game_state))
+	_check_effect(main, "timed_out", "効果音: 時間切れで時間切れの効果音が鳴る")
 	_check(
 		game_state.affection == {"hina": ConversationScript.TIMEOUT_AFFECTION},
 		"時間切れで好感度が下がる"
@@ -397,6 +410,7 @@ func _check_settings(game_state: Node, main: Control, save_data: Node) -> void:
 	_check(game_state.screen == GameStateScript.Screen.SETTINGS, "設定: O で設定を開く")
 	_check(main.get_node("SettingsScreen").visible, "設定: 設定の画面が出ている")
 	_check(not game_state.is_playing(), "設定: 設定を開いても会話は始まらない")
+	_check_bgm(main, null, "BGM: 設定では鳴らない")
 	for bus: String in SaveDataScript.VOLUME_BUSES:
 		_check(
 			rows.get_node(bus).get_node("Level").value == save_data.volumes[bus],
@@ -454,6 +468,7 @@ func _check_credits(game_state: Node, main: Control) -> void:
 	await _hold_keys([KEY_K], 1)
 	_check(game_state.screen == GameStateScript.Screen.CREDITS, "クレジット: K でクレジットを開く")
 	_check(main.get_node("CreditsScreen").visible, "クレジット: クレジットの画面が出ている")
+	_check_bgm(main, null, "BGM: クレジットでは鳴らない")
 	_check(
 		main.get_node("CreditsScreen/Scroll/Entries").text == CreditsScript.load_text(),
 		"クレジット: 素材の記録から作った一覧が出ている"
@@ -477,11 +492,15 @@ func _check_credits(game_state: Node, main: Control) -> void:
 ## 何も押さずに時間切れで) 進め、case のエンディングに着くこと。ルートに入る周は、そのルートの最後の章の区切り
 ## (LAST_CHAPTERS) とその時点の好感度が保存されていること。共通 bad の周は章の区切りを通らないため、保存が変わらないこと
 ## (章の区切りの数はシナリオの形式として selfcheck が数える)。結果に通った選択肢がキーで選んだ数と時間切れの回数として
-## 記録され、所要時間が見積もりの範囲に収まること
+## 記録され、所要時間が見積もりの範囲に収まること。鳴る BGM が、ルートに入る周は共通パート → ルート → エンディング、
+## 共通 bad の周は共通パート → エンディングの順に切り替わること
 func _check_main_ending(game_state: Node, main: Control, case: Array, save_data: Node) -> void:
 	var expected: String = case[0]
 	var chapter_before: String = save_data.chapter
+	var bgm_player: AudioStreamPlayer = main.get_node("Audio/Bgm")
+	var heard: Array = []
 	await _hold_keys([KEY_ENTER], 1)
+	_record_bgm(bgm_player, heard)
 	var frames: int = 0
 	while game_state.is_playing() and frames < WAIT_FRAME_LIMIT:
 		var pick: int = (
@@ -493,7 +512,22 @@ func _check_main_ending(game_state: Node, main: Control, case: Array, save_data:
 			await _hold_keys([CHOICE_KEYS[pick]], 1)
 		else:
 			await process_frame
+		_record_bgm(bgm_player, heard)
 		frames += 1
+	await process_frame
+	_record_bgm(bgm_player, heard)
+	var expected_bgms: Array = (
+		[SoundScript.BGM_COMMON, SoundScript.BGM_ENDING]
+		if case[1].is_empty()
+		else [SoundScript.BGM_COMMON, SoundScript.BGM_ROUTE, SoundScript.BGM_ENDING]
+	)
+	_check(
+		heard == expected_bgms,
+		(
+			"本編の BGM: %s までの BGM が場面に合わせて切り替わる (%s)"
+			% [expected, heard.map(func(bgm: AudioStream) -> String: return bgm.resource_path)]
+		)
+	)
 	_check(
 		(
 			game_state.screen == GameStateScript.Screen.ENDING
@@ -571,6 +605,37 @@ func _check_last_chapter_saved(
 			"本編: %s の最後の章の区切りと、その時点の好感度が保存されている (%s %s)"
 			% [expected, save_data.chapter, save_data.affection]
 		)
+	)
+
+
+## bgm_player が鳴らしている BGM が heard (鳴った BGM の順の一覧) の最後と違えば heard に足す。鳴っていなければ何もしない
+func _record_bgm(bgm_player: AudioStreamPlayer, heard: Array) -> void:
+	if bgm_player.playing and (heard.is_empty() or heard.back() != bgm_player.stream):
+		heard.append(bgm_player.stream)
+
+
+## main の BGM のノードが、BGM のバスで bgm を鳴らしている (bgm が null なら鳴っていない) こと
+func _check_bgm(main: Control, bgm: AudioStream, label: String) -> void:
+	var bgm_player: AudioStreamPlayer = main.get_node("Audio/Bgm")
+	if bgm == null:
+		_check(not bgm_player.playing, label)
+		return
+	_check(
+		bgm_player.playing and bgm_player.stream == bgm and bgm_player.bus == &"BGM",
+		"%s (%s)" % [label, bgm_player.stream.resource_path if bgm_player.stream != null else "なし"]
+	)
+
+
+## main の event (GameState の signal の名前) の効果音のノードが、効果音のバスでその効果音を鳴らしていること
+func _check_effect(main: Control, event: String, label: String) -> void:
+	var effect_player: AudioStreamPlayer = main.get_node("Audio/" + event)
+	_check(
+		(
+			effect_player.playing
+			and effect_player.stream == SoundScript.EFFECTS[event]
+			and effect_player.bus == &"SE"
+		),
+		label
 	)
 
 
