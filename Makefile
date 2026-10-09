@@ -120,12 +120,17 @@ run: import
 # 引数の pck に scenario/ の全ファイルと、同梱フォントとそのライセンス文が入っていることを検査する。JSON と
 # ライセンス文はスクリプトから参照されないデータで、export_presets.cfg の include_filter から漏れると、headless の
 # 検証は通るのにエクスポートしたゲームだけ会話が始まらない・ライセンス文を同梱せずに配布することになる。フォントは
-# Web ビルドがシステムフォントを使えず、入っていないと日本語が表示されないため。フォントのパスは pck の中では
-# .import の参照にしか一致しないため、本体 (.godot/imported/<ファイル名>-<hash>.fontdata) も確かめる (macOS は pck が
-# zip の中の .app に入るため検査しない)
-PCK_REQUIRED_FILES := $(wildcard scenario/*.json) $(PROJECT_FONT) .godot/imported/$(notdir $(PROJECT_FONT))- assets/fonts/OFL.txt
+# Web ビルドがシステムフォントを使えず、入っていないと日本語が表示されないため (macOS は pck が zip の中の .app に
+# 入るため検査しない)。
+# フォントのパスは pck の中では .import の参照にしか一致しないため、import 済みのデータ
+# (.godot/imported/<ファイル名>-<hash>.fontdata) も確かめる。このパスは .import の中身 ([remap] の path) に 1 回現れるため、
+# ファイル一覧の項目と合わせて 2 回以上現れることで格納を判定する
+PCK_REQUIRED_FILES := $(wildcard scenario/*.json) $(PROJECT_FONT) assets/fonts/OFL.txt
+PCK_FONT_DATA := .godot/imported/$(notdir $(PROJECT_FONT))-
 define check_files_in_pck
 for file in $(PCK_REQUIRED_FILES); do grep -qa "$$file" $(1) || { echo "pck にファイルがありません: $$file"; exit 1; }; echo "pck に格納: $$file"; done
+test "$$(grep -ao '$(PCK_FONT_DATA)' $(1) | wc -l)" -ge 2 || { echo "pck にフォントのデータがありません: $(PCK_FONT_DATA)<hash>.fontdata"; exit 1; }
+echo "pck に格納: $(PCK_FONT_DATA)<hash>.fontdata"
 endef
 
 # エクスポート。プリセット名は export_presets.cfg と一致させる。実行には Godot 4.7 の各プラットフォームの export template が
