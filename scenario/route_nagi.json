@@ -93,7 +93,7 @@
   {"speaker": "ナギ", "expression": "normal", "text": "ありがと。"},
   {"text": "四文字。教科書に目を落としたまま、こちらを見ずに。"},
   {"text": "テストの結果は、二人とも平均点だった。彼女の答案には、答えしか書いていなかったらしい。"},
-  {"text": "六月。梅雨。ナギは雨の日も走った。濡れた髪のまま、教室に戻ってくる。"},
+  {"background": "classroom", "text": "六月。梅雨。ナギは雨の日も走った。濡れた髪のまま、教室に戻ってくる。"},
   {"speaker": "ヒナ", "expression": "surprised", "text": "千早さん、びしょびしょ！タオル！風邪！保健室！"},
   {"speaker": "ナギ", "expression": "normal", "text": "平気。"},
   {"speaker": "ヒナ", "expression": "normal", "text": "平気じゃない！髪から雨が落ちてるもん！三秒に一滴！"},

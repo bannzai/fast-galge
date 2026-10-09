@@ -849,6 +849,7 @@ func _check_stage() -> void:
 	for lines: Array in [main_lines, ScenarioScript.load_lines(SAMPLE_SCENARIO_PATHS)]:
 		var errors: Array[String] = StageScript.errors(lines)
 		_check(errors.is_empty(), "素材: シナリオの背景・表情・話者に素材がある %s" % [errors])
+		_check_chapter_backgrounds(lines)
 	for case: Array in INVALID_STAGE_LINES:
 		_check(not StageScript.errors([case[0]]).is_empty(), "素材: %sを見つける" % case[1])
 	var paths: Array[String] = [StageScript.TITLE_PATH, StageScript.SPEED_LINES_PATH]
@@ -871,6 +872,21 @@ func _check_stage() -> void:
 	)
 	for background: String in StageScript.BACKGROUNDS:
 		_check(background in used, "素材: 背景 %s を本編で使っている" % background)
+
+
+## lines (シナリオの行) の章の区切りごとに、その後の最初のメッセージの行が背景を指定していること。「つづきから」で
+## 再開した直後のバックログはその 1 行だけで、背景が無いと背景が決まらないため
+func _check_chapter_backgrounds(lines: Array) -> void:
+	for index: int in range(lines.size()):
+		if not lines[index].has(ScenarioScript.CHAPTER):
+			continue
+		var message: int = index + 1
+		while message < lines.size() and not lines[message].has(ScenarioScript.TEXT):
+			message += 1
+		_check(
+			message < lines.size() and lines[message].has(ScenarioScript.BACKGROUND),
+			"素材: 章の区切り %s の後の最初のメッセージが背景を指定している" % lines[index][ScenarioScript.CHAPTER]
+		)
 
 
 ## 全シーンがロードできる
