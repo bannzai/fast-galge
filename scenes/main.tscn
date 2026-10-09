@@ -175,20 +175,20 @@ mouse_filter = 2
 
 [node name="Title" type="Label" parent="TitleScreen"]
 layout_mode = 0
-offset_top = 496.0
+offset_top = 494.0
 offset_right = 1280.0
-offset_bottom = 572.0
-theme_override_font_sizes/font_size = 60
+offset_bottom = 566.0
+theme_override_font_sizes/font_size = 56
 text = "fast-galge"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="StartButton" type="Button" parent="TitleScreen"]
 layout_mode = 0
-offset_left = 490.0
-offset_top = 582.0
-offset_right = 790.0
-offset_bottom = 640.0
+offset_left = 330.0
+offset_top = 576.0
+offset_right = 630.0
+offset_bottom = 634.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 26
 text = "はじめから [Enter]"
@@ -196,20 +196,20 @@ text = "はじめから [Enter]"
 [node name="ContinueButton" type="Button" parent="TitleScreen"]
 visible = false
 layout_mode = 0
-offset_left = 490.0
-offset_top = 650.0
-offset_right = 790.0
-offset_bottom = 708.0
+offset_left = 650.0
+offset_top = 576.0
+offset_right = 950.0
+offset_bottom = 634.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 26
 text = "つづきから [C]"
 
 [node name="SettingsButton" type="Button" parent="TitleScreen"]
 layout_mode = 0
-offset_left = 440.0
-offset_top = 610.0
+offset_left = 330.0
+offset_top = 646.0
 offset_right = 630.0
-offset_bottom = 670.0
+offset_bottom = 704.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 24
 text = "設定 [O]"
@@ -217,9 +217,9 @@ text = "設定 [O]"
 [node name="CreditsButton" type="Button" parent="TitleScreen"]
 layout_mode = 0
 offset_left = 650.0
-offset_top = 610.0
-offset_right = 840.0
-offset_bottom = 670.0
+offset_top = 646.0
+offset_right = 950.0
+offset_bottom = 704.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 24
 text = "クレジット [K]"
@@ -499,22 +499,20 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Panel" type="ColorRect" parent="SettingsScreen"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0.14, 0.13, 0.2, 1)
+[node name="Paper" type="Panel" parent="SettingsScreen"]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 24.0
+offset_right = 1220.0
+offset_bottom = 616.0
+mouse_filter = 2
 
 [node name="Heading" type="Label" parent="SettingsScreen"]
 layout_mode = 0
-offset_left = 80.0
-offset_top = 24.0
+offset_left = 100.0
+offset_top = 36.0
 offset_right = 800.0
-offset_bottom = 84.0
-theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+offset_bottom = 92.0
 theme_override_font_sizes/font_size = 36
 text = "設定"
 vertical_alignment = 1
@@ -535,7 +533,6 @@ offset_bottom = 80.0
 layout_mode = 0
 offset_right = 200.0
 offset_bottom = 80.0
-theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
 theme_override_font_sizes/font_size = 32
 text = "BGM"
 vertical_alignment = 1
@@ -579,7 +576,6 @@ offset_bottom = 200.0
 layout_mode = 0
 offset_right = 200.0
 offset_bottom = 80.0
-theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
 theme_override_font_sizes/font_size = 32
 text = "効果音"
 vertical_alignment = 1
@@ -632,44 +628,41 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Panel" type="ColorRect" parent="CreditsScreen"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0.14, 0.13, 0.2, 1)
+[node name="Paper" type="Panel" parent="CreditsScreen"]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 24.0
+offset_right = 1220.0
+offset_bottom = 616.0
+mouse_filter = 2
 
 [node name="Heading" type="Label" parent="CreditsScreen"]
 layout_mode = 0
-offset_left = 80.0
-offset_top = 24.0
+offset_left = 100.0
+offset_top = 36.0
 offset_right = 800.0
-offset_bottom = 84.0
-theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+offset_bottom = 92.0
 theme_override_font_sizes/font_size = 36
 text = "クレジット"
 vertical_alignment = 1
 
 [node name="Scroll" type="ScrollContainer" parent="CreditsScreen"]
 layout_mode = 0
-offset_left = 80.0
+offset_left = 100.0
 offset_top = 100.0
-offset_right = 1200.0
+offset_right = 1180.0
 offset_bottom = 450.0
 horizontal_scroll_mode = 0
 
 [node name="Entries" type="Label" parent="CreditsScreen/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.92, 0.9, 0.85, 1)
 theme_override_font_sizes/font_size = 22
 autowrap_mode = 3
 
 [node name="TermsButton" type="Button" parent="CreditsScreen"]
 layout_mode = 0
-offset_left = 80.0
+offset_left = 100.0
 offset_top = 470.0
 offset_right = 620.0
 offset_bottom = 530.0
@@ -681,7 +674,7 @@ text = "利用規約"
 layout_mode = 0
 offset_left = 660.0
 offset_top = 470.0
-offset_right = 1200.0
+offset_right = 1180.0
 offset_bottom = 530.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 24
@@ -689,7 +682,7 @@ text = "プライバシーポリシー"
 
 [node name="SupportButton" type="Button" parent="CreditsScreen"]
 layout_mode = 0
-offset_left = 80.0
+offset_left = 100.0
 offset_top = 550.0
 offset_right = 620.0
 offset_bottom = 610.0
@@ -701,7 +694,7 @@ text = "サポートページ"
 layout_mode = 0
 offset_left = 660.0
 offset_top = 550.0
-offset_right = 1200.0
+offset_right = 1180.0
 offset_bottom = 610.0
 focus_mode = 0
 theme_override_font_sizes/font_size = 24
