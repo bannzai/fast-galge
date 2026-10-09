@@ -4,7 +4,7 @@
 
 ## 生成画像 (立ち絵・背景・タイトルの一枚絵・流線)
 
-下の表の「生成」の素材は、2026-10-09 に Codex CLI 0.156.0 の組み込み画像生成 (imagegen skill。モデル `gpt-6-astra`。生成時の codex のログの `model:` 行で確認) で agent が生成した。生成は game-art-reference skill の `generate-reference.sh` で行い、画風は `documents/art-direction/` の承認済みの参考画像 (`play-1.png`・`title-1.png`) を添付して揃えた。プロンプトの共通部分は「1990 年代後半の PC ギャルゲー風のフラットな 2D アニメ調 (手描きの線の揺らぎと塗りむらを残したセル調)」と、使わないもの (ツヤのある 3D レンダ、金属やネオンの質感、磨かれすぎた左右対称の顔、パステル背景に太い輪郭線、写実の照明、読める文字やロゴ)。立ち絵は各ヒロインの `normal` を先に生成し、他の表情は `normal` を添付して同じ人物に揃えた。
+下の表の「生成」の素材は、2026-10-09 に Codex CLI 0.156.0 の組み込み画像生成 (imagegen skill。ツール `image_gen.imagegen` の画像生成モデルは `gpt-image-2`。出典: https://github.com/openai/codex/blob/rust-v0.156.0/codex-rs/ext/image-generation/src/tool.rs の `const IMAGE_MODEL: &str = "gpt-image-2";`。生成時の codex のログの `model:` 行の `gpt-6-astra` はツールを呼んだ agent のモデル) で agent が生成した。生成は game-art-reference skill の `generate-reference.sh` で行い、画風は `documents/art-direction/` の承認済みの参考画像 (`play-1.png`・`title-1.png`) を添付して揃えた。プロンプトの共通部分は「1990 年代後半の PC ギャルゲー風のフラットな 2D アニメ調 (手描きの線の揺らぎと塗りむらを残したセル調)」と、使わないもの (ツヤのある 3D レンダ、金属やネオンの質感、磨かれすぎた左右対称の顔、パステル背景に太い輪郭線、写実の照明、読める文字やロゴ)。立ち絵は各ヒロインの `normal` を先に生成し、他の表情は `normal` を添付して同じ人物に揃えた。
 
 帰属: OpenAI の利用規約 (https://openai.com/policies/terms-of-use/ 「Ownership of content」) は「As between you and OpenAI, and to the extent permitted by applicable law, you (a) retain your ownership rights in Input and (b) own the Output. We hereby assign to you all our right, title, and interest, if any, in and to Output.」と定める (2026-10-09 に検索結果の引用で確認。ページ本体はボットの確認画面で取得できなかった)。同じ節は「output may not be unique and other users may receive similar output」とも書いており、他の利用者の出力には譲渡が及ばない。クレジット表記の要否は同規約に定めが無い。
 
