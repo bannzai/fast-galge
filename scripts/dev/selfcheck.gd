@@ -93,11 +93,11 @@ const TRANSITION_CASES: Array[Array] = [
 ]
 ## メッセージの表示時間の検証 (本文の文字数・期待する秒数)。10 文字以下は下限、20 文字以上は上限に張り付く
 const MESSAGE_SECONDS_CASES: Array[Array] = [
-	[0, 0.4],
-	[10, 0.4],
-	[15, 0.6],
-	[20, 0.8],
-	[40, 0.8],
+	[0, 0.2],
+	[10, 0.2],
+	[15, 0.3],
+	[20, 0.4],
+	[40, 0.4],
 ]
 ## 分岐・好感度・時間切れ・所要時間の計算の検証に使う、選択肢 1 つのシナリオ。
 ## 1 つ目の選択肢 (up) は条件つきの移動を満たして good、2 つ目 (down) と時間切れ (late) は満たさず bad に着く
@@ -125,9 +125,9 @@ const BRANCH_LINES: Array = [
 ## BRANCH_LINES を通しで進めた結果の検証 (選ぶ番号・期待する所要時間・期待する好感度・期待するエンディング・説明)。
 ## 所要時間は通ったメッセージの表示時間と選択肢の制限時間の合計
 const BRANCH_PLAYTHROUGH_CASES: Array[Array] = [
-	[0, 2.4, {"a": 2, "b": 1}, "good", "1 つ目の選択肢"],
-	[1, 3.2, {"a": -2}, "bad", "2 つ目の選択肢 (分岐先を省いて次の行へ進む)"],
-	[ConversationScript.TIMEOUT, 2.8, {"a": -1, "b": -1}, "bad", "時間切れ"],
+	[0, 2.2, {"a": 2, "b": 1}, "good", "1 つ目の選択肢"],
+	[1, 2.6, {"a": -2}, "bad", "2 つ目の選択肢 (分岐先を省いて次の行へ進む)"],
+	[ConversationScript.TIMEOUT, 2.4, {"a": -1, "b": -1}, "bad", "時間切れ"],
 ]
 ## 形式の誤りの検証で、シナリオの最後に置くエンディングの行
 const ENDING_LINE: Dictionary = {"ending": "end", "name": "end", "summary": "end"}
@@ -205,14 +205,14 @@ const CHAPTER_LINES: Array = [
 ]
 ## 本編のルートに入る周で通る章の区切りの数の下限 (ルートの始まり = 共通パートの終わりと、ルートの中間)
 const ROUTE_MIN_CHAPTERS: int = 2
-## 本編のルートに入る周 (共通パート + どちらかのヒロインのルート) の所要時間の範囲 (秒)。共通パート 1 分 + ルート 5 分前後
-## (documents/PROJECT.md「登場人物とシナリオの規模」) に対し、4〜7 分に収める
-const MAIN_MIN_SECONDS: float = 240.0
-const MAIN_MAX_SECONDS: float = 420.0
-## 共通 bad に着く周 (共通パート + 共通 bad エンディング) の所要時間の範囲 (秒)。共通パート 1 分前後とエンディングの
+## 本編のルートに入る周 (共通パート + どちらかのヒロインのルート) の所要時間の範囲 (秒)。共通パート 40 秒前後 + ルート
+## 2 分前後 (documents/PROJECT.md「登場人物とシナリオの規模」) に対し、2〜3 分半に収める
+const MAIN_MIN_SECONDS: float = 120.0
+const MAIN_MAX_SECONDS: float = 210.0
+## 共通 bad に着く周 (共通パート + 共通 bad エンディング) の所要時間の範囲 (秒)。共通パート 40 秒前後とエンディングの
 ## 数行で、ルートに入る周の下限より短く終わる
-const COMMON_BAD_MIN_SECONDS: float = 45.0
-const COMMON_BAD_MAX_SECONDS: float = 150.0
+const COMMON_BAD_MIN_SECONDS: float = 20.0
+const COMMON_BAD_MAX_SECONDS: float = 75.0
 ## ルートに入る周で通る選択肢の数の範囲 (共通パートの 2 箇所 + ルートの 2〜5 箇所)
 const MAIN_MIN_CHOICES: int = 4
 const MAIN_MAX_CHOICES: int = 7
@@ -389,7 +389,7 @@ func _check_chapter() -> void:
 		CHAPTER_LINES, func(_choice: Dictionary) -> int: return 0
 	)
 	_check(
-		is_equal_approx(result["seconds"], 2.8) and result["ending"].get("ending") == "end",
+		is_equal_approx(result["seconds"], 2.4) and result["ending"].get("ending") == "end",
 		"章の区切り: 所要時間に数えずエンディングに着く"
 	)
 
