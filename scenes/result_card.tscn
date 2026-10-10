@@ -25,9 +25,9 @@ expand_mode = 1
 [node name="Heading" type="Label" parent="."]
 layout_mode = 0
 offset_left = 150.0
-offset_top = 74.0
+offset_top = 61.0
 offset_right = 1070.0
-offset_bottom = 102.0
+offset_bottom = 89.0
 theme_override_colors/font_color = Color(0.85, 0.38, 0.14, 1)
 theme_override_font_sizes/font_size = 22
 text = "ENDING"
@@ -37,9 +37,9 @@ vertical_alignment = 1
 [node name="EndingName" type="Label" parent="."]
 layout_mode = 0
 offset_left = 150.0
-offset_top = 100.0
+offset_top = 80.0
 offset_right = 1070.0
-offset_bottom = 168.0
+offset_bottom = 148.0
 theme_override_colors/font_color = Color(0.11, 0.15, 0.3, 1)
 theme_override_font_sizes/font_size = 56
 text = "エンディング名"
