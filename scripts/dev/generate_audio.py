@@ -129,7 +129,7 @@ def write_ogg(path, buf):
 
 
 def se_message():
-    """文字送り: メッセージが切り替わるたびに鳴る、短く小さな高い音 (0.4〜0.8 秒ごとに鳴るため耳に残らない長さ)"""
+    """文字送り: メッセージが切り替わるたびに鳴る、短く小さな高い音 (0.2〜0.4 秒ごとに鳴るため耳に残らない長さ)"""
     buf = [0.0] * int(0.05 * RATE)
     add_tone(buf, 0.0, 0.05, midi_freq(88), "triangle", 0.6, attack=0.002, release=0.04)
     add_tone(buf, 0.0, 0.03, midi_freq(100), "sine", 0.25, attack=0.001, release=0.025)

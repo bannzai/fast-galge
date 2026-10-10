@@ -6,11 +6,12 @@ extends RefCounted
 ## シナリオの保存形式のキー
 const ScenarioScript := preload("res://scripts/scenario.gd")
 ## メッセージの 1 文字あたりの表示時間 (秒)。10 文字で下限、20 文字で上限に届く傾きにして、短い相づちと長い台詞で
-## 表示時間に差が出るようにした (documents/PROJECT.md「基本ルール」の初期値。CI の録画で見て調整する)
-const SECONDS_PER_CHARACTER: float = 0.04
-## メッセージの表示時間の下限と上限 (秒)。documents/PROJECT.md「基本ルール」の初期値 0.4〜0.8 秒
-const MIN_MESSAGE_SECONDS: float = 0.4
-const MAX_MESSAGE_SECONDS: float = 0.8
+## 表示時間に差が出るようにした (documents/PROJECT.md「基本ルール」。CI の録画で見て調整する)
+const SECONDS_PER_CHARACTER: float = 0.02
+## メッセージの表示時間の下限と上限 (秒)。初期値 0.4〜0.8 秒を bannzai が遊んで「遅い」と返答したため 2 倍速にした
+## (documents/DIRECTION.md「決めたこと」の 2026-10-10)
+const MIN_MESSAGE_SECONDS: float = 0.2
+const MAX_MESSAGE_SECONDS: float = 0.4
 ## 選択肢の制限時間 (秒)。documents/PROJECT.md「基本ルール」の初期値
 const CHOICE_SECONDS: float = 2.0
 ## 時間切れで選んだ扱いになる選択肢の本文と、その好感度の変化 (documents/PROJECT.md「基本ルール」)
@@ -26,9 +27,10 @@ const MAX_FRAME_SECONDS: float = 0.1
 ## SLOW_SPEED_RATE で、ゆっくりモードの速さは別の値の組を持たずこの倍率だけで決める
 ## (.claude/rules/conversation-speed-and-scenario-single-source.md)。
 ## ゆっくりモードでは表示時間をかけてメッセージの文字を出し、出し切った後はクリックか決定で送る (自動では送らない)。
-## SLOW_SPEED_RATE は通常のギャルゲーの文字の速さ (20 文字を 1.6 秒) に合わせた初期値で、CI の録画で見て調整する
+## SLOW_SPEED_RATE は通常のギャルゲーの文字の速さ (20 文字を 1.6 秒) に合わせた値で、CI の録画で見て調整する
+## (通常の速さを 2 倍速にした時に、ゆっくりモードの速さが変わらないよう 0.5 から 0.25 にした)
 const NORMAL_SPEED_RATE: float = 1.0
-const SLOW_SPEED_RATE: float = 0.5
+const SLOW_SPEED_RATE: float = 0.25
 
 
 ## 1 フレームの経過時間 delta (秒) のうち、会話に進める時間 (秒)

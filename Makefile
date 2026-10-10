@@ -77,7 +77,7 @@ selfcheck: import
 # バックログの開閉・エンディングへの到達・オートセーブと「つづきから」の再開・エンディング一覧・ゆっくりモードでの
 # 手で送る進行と、表示の追従と、タイトルから開く設定 (音量の変更と保存) とクレジット (リンクを開く) と、場面に合わせた
 # BGM と効果音を確認する。--fixed-fps で
-# 会話の時間を実時間から切り離し、本編 5 周 (5 つのエンディング。ルートに入る周は 1 周 約 5 分) を待たずに流す
+# 会話の時間を実時間から切り離し、本編 5 周 (5 つのエンディング。ルートに入る周は 1 周 約 2 分半) を待たずに流す
 integration: import
 	"$(GODOT)" --headless $(ENGINE_LOG) --path . --fixed-fps 60 --script res://scripts/dev/integration.gd > $(LOG_DIR)/integration.log 2>&1; \
 	echo "exit=$$?" >> $(LOG_DIR)/integration.log; \

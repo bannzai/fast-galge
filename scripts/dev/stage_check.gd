@@ -92,9 +92,9 @@ static func failures(main_paths: Array[String], sample_paths: Array[String]) -> 
 	return found
 
 
-## 背景と立ち絵の全素材のパス (タイトルの一枚絵・流線・全背景・全ヒロインの全表情)
+## 背景と立ち絵の全素材のパス (タイトルの一枚絵・全背景・全ヒロインの全表情)
 static func _asset_paths() -> Array[String]:
-	var paths: Array[String] = [StageScript.TITLE_PATH, StageScript.SPEED_LINES_PATH]
+	var paths: Array[String] = [StageScript.TITLE_PATH]
 	for background: String in StageScript.BACKGROUNDS:
 		paths.append(StageScript.background_path(background))
 	for speaker: String in StageScript.HEROINES:
