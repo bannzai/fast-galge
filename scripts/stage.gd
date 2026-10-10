@@ -25,13 +25,9 @@ const BACKGROUNDS: Array[String] = [
 	"avenue_night",
 	"sakura_tree",
 ]
-## 立ち絵の後ろに流線を出すヒロインの ID。早口のヒロインだけに出し、無口なヒロインは線を出さずに対比させる
-## (documents/DIRECTION.md「デザインの方向」の「速さを表す流線と残像」)
-const SPEED_LINE_HEROINES: Array[String] = ["hina"]
 ## 素材のパス (立ち絵はヒロインの ID と表情、背景は背景の ID を埋める)
 const PORTRAIT_PATH: String = "res://assets/portraits/%s_%s.png"
 const BACKGROUND_PATH: String = "res://assets/backgrounds/%s.jpg"
-const SPEED_LINES_PATH: String = "res://assets/effects/speed_lines.png"
 const TITLE_PATH: String = "res://assets/title/title.jpg"
 
 
@@ -43,11 +39,6 @@ static func background_path(background: String) -> String:
 ## line (表情を持つメッセージの行) の話者と表情の立ち絵の素材のパス
 static func portrait_path(line: Dictionary) -> String:
 	return PORTRAIT_PATH % [HEROINES[line[ScenarioScript.SPEAKER]], line[ScenarioScript.EXPRESSION]]
-
-
-## line (表情を持つメッセージの行) の話者が、立ち絵の後ろに流線を出すヒロインか
-static func has_speed_lines(line: Dictionary) -> bool:
-	return HEROINES[line[ScenarioScript.SPEAKER]] in SPEED_LINE_HEROINES
 
 
 ## backlog (流れた行の古い順の一覧) で最後に背景を指定した行の背景。どの行も指定していなければ ""

@@ -76,10 +76,9 @@ var pictures_dir_provider: Callable = func() -> String:
 ## self_modulate の不透明度を 0 にしている)
 @onready var conversation_screen: Control = $ConversationScreen
 @onready var send_area: Button = $ConversationScreen/SendArea
-## いまの場面の背景、立ち絵、立ち絵の後ろの流線 (立ち絵が流線を出すヒロインの間だけ出す)
+## いまの場面の背景と立ち絵
 @onready var scene_background: TextureRect = $ConversationScreen/SceneBackground
 @onready var portrait: TextureRect = $ConversationScreen/Portrait
-@onready var speed_lines: TextureRect = $ConversationScreen/SpeedLines
 ## メッセージウィンドウの名札 (話者がいる間だけ出す)、話者名、本文
 @onready var name_tag: Control = $ConversationScreen/MessageWindow/NameTag
 @onready var speaker_label: Label = $ConversationScreen/MessageWindow/Speaker
@@ -132,7 +131,6 @@ var pictures_dir_provider: Callable = func() -> String:
 func _ready() -> void:
 	print(BOOT_MESSAGE)
 	title_art.texture = load(StageScript.TITLE_PATH)
-	speed_lines.texture = load(StageScript.SPEED_LINES_PATH)
 	bgm_player.volume_db = SoundScript.BGM_VOLUME_DB
 	var game_state: Node = _game_state()
 	for event: String in SoundScript.EFFECTS:
@@ -387,9 +385,6 @@ func _refresh_conversation(game_state: Node) -> void:
 	var portrait_line: Dictionary = StageScript.shown_portrait(backlog)
 	_show_texture(
 		portrait, "" if portrait_line.is_empty() else StageScript.portrait_path(portrait_line)
-	)
-	speed_lines.visible = (
-		not portrait_line.is_empty() and StageScript.has_speed_lines(portrait_line)
 	)
 	var options: Array = game_state.current_line().get(ScenarioScript.CHOICES, [])
 	choice_panel.visible = not options.is_empty()
